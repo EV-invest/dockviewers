@@ -24,7 +24,7 @@ web = ["dioxus/web"]
 # localStorage persistence is web-only; gated so native `cargo check` stays green.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "HtmlElement", "DomRect", "Node", "NodeList", "EventTarget", "KeyboardEvent", "console"] }
+web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "HtmlElement", "DomRect", "Node", "NodeList", "EventTarget", "KeyboardEvent", "PointerEvent", "console"] }
 
 [dependencies]
 dioxus.workspace = true

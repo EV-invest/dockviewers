@@ -230,10 +230,19 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_ready: Option<Callback<Pack
 				let hit = if let Some(mg) = maximized() {
 					Some(mg) // maximized tile fills the view
 				} else {
+					// Tiles live in the root's scrolled content space; the cursor in client space.
+					let scroll_y = web_sys::window()
+						.expect("a browser window")
+						.document()
+						.expect("a document")
+						.query_selector(".dv-packed")
+						.expect("static selector")
+						.expect("packed root in DOM while its keybinds fire")
+						.scroll_top() as f64;
 					g.cells
 						.iter()
 						.find(|c| {
-							let (gx, gy) = (cx - ox, cy - oy);
+							let (gx, gy) = (cx - ox, cy - oy + scroll_y);
 							gx >= c.x as f64 * sw && gx < (c.x + c.w) as f64 * sw && gy >= c.y as f64 * sh && gy < (c.y + c.h) as f64 * sh
 						})
 						.map(|c| c.group.id)
@@ -453,34 +462,38 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_ready: Option<Callback<Pack
 				div {
 					style: "position:fixed; inset:0; z-index:1000; cursor:grabbing;",
 					onpointermove: move |e: PointerEvent| {
-						let Some(mut d) = drag() else { return };
 						let c = e.client_coordinates();
-						d.cursor = (c.x, c.y);
-						if !d.armed {
-							let (dx, dy) = (c.x - d.start.0, c.y - d.start.1);
-							if (dx * dx + dy * dy).sqrt() <= DRAG_THRESHOLD {
-								return;
+						async move {
+							let Some(mut d) = drag() else { return };
+							d.cursor = (c.x, c.y);
+							if !d.armed {
+								let (dx, dy) = (c.x - d.start.0, c.y - d.start.1);
+								if (dx * dx + dy * dy).sqrt() <= DRAG_THRESHOLD {
+									return;
+								}
+								d.armed = true;
 							}
-							d.armed = true;
-						}
-						let (ox, oy) = root_origin();
-						// Reference the moving block's center (ghost top-left + half its size), not the raw
-						// pointer — the cell the block visibly covers is where it lands.
-						let (sw, sh) = step_px();
+							let (ox, oy) = root_origin();
+							// The tiles live in the root's scrolled content space; the pointer in client space.
+							let scroll_y = root_handle.peek().clone().expect("root mounted before any gesture").get_scroll_offset().await.expect("root is a live element").y;
+							// Reference the moving block's center (ghost top-left + half its size), not the raw
+							// pointer — the cell the block visibly covers is where it lands.
+							let (sw, sh) = step_px();
 							let cx = c.x - d.grab.0 + d.src_w as f64 * sw / 2.0;
-						let cy = c.y - d.grab.1 + d.src_h as f64 * sh / 2.0;
-						let mut t = grid.read().resolve_target(&d.source, cx - ox, cy - oy, c.x - ox, c.y - oy, sw, sh, CHROME_H, cols(), d.src_w, d.src_h);
-						// The model can only append (it has no tab geometry); refine the slot from the live
-						// preview's tab rects, skipping the ghost's own tab(s) so we read the source-free order.
-						if let DropTarget::Tab { group, index } = t {
-							let dragged: Vec<String> = match &d.source {
-								DragSource::Tab { panel, .. } => vec![panel.0.clone()],
-								DragSource::Tile(g) => grid.read().cells.iter().find(|c| c.group.id == *g).expect("drag source group exists").group.tabs.iter().map(|p| p.0.clone()).collect(),
-							};
-							t = DropTarget::Tab { group, index: tab_drop_index(c.x, group.0, &dragged).unwrap_or(index) };
+							let cy = c.y - d.grab.1 + d.src_h as f64 * sh / 2.0;
+							let mut t = grid.read().resolve_target(&d.source, cx - ox, cy - oy + scroll_y, c.x - ox, c.y - oy + scroll_y, sw, sh, CHROME_H, cols(), d.src_w, d.src_h);
+							// The model can only append (it has no tab geometry); refine the slot from the live
+							// preview's tab rects, skipping the ghost's own tab(s) so we read the source-free order.
+							if let DropTarget::Tab { group, index } = t {
+								let dragged: Vec<String> = match &d.source {
+									DragSource::Tab { panel, .. } => vec![panel.0.clone()],
+									DragSource::Tile(g) => grid.read().cells.iter().find(|c| c.group.id == *g).expect("drag source group exists").group.tabs.iter().map(|p| p.0.clone()).collect(),
+								};
+								t = DropTarget::Tab { group, index: tab_drop_index(c.x, group.0, &dragged).unwrap_or(index) };
+							}
+							d.target = Some(t);
+							drag.set(Some(d));
 						}
-						d.target = Some(t);
-						drag.set(Some(d));
 					},
 					onpointerup: move |_| {
 						let Some(d) = drag() else { return };
@@ -763,33 +776,54 @@ fn PackedFrame(idx: usize) -> Element {
 						return;
 					}
 					e.stop_propagation();
+					// Capture the pointer: moves keep streaming — with client y running past the window
+					// bottom — while the button is held, so the tile stretches below the fold instead of
+					// pinning at the viewport (the root's `overflow-y: auto` then scrolls to the grown
+					// content). The deltas below are client-space diffs, so a constant scroll cancels out.
+					#[cfg(target_arch = "wasm32")]
+					{
+						use dioxus::web::WebEventExt;
+						use wasm_bindgen::JsCast;
+						let ev = e.data().as_web_event();
+						ev.target()
+							.and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+							.expect("pointerdown target is the handle element")
+							.set_pointer_capture(ev.pointer_id())
+							.expect("capture on a live element with an active pointer");
+					}
 					let c = e.client_coordinates();
 					resize.set(Some(ResizeStart { px: c.x, py: c.y, w, h }));
 					api.grid.write().state = GridState::Resizing;
 				},
+				onpointermove: move |e: PointerEvent| {
+					let Some(s) = resize() else { return };
+					let c = e.client_coordinates();
+					let (sw, sh) = step();
+					let dw = ((c.x - s.px) / sw).round() as i64;
+					let dh = ((c.y - s.py) / sh).round() as i64;
+					let nw = (s.w as i64 + dw).max(1) as u32;
+					let nh = (s.h as i64 + dh).max(1) as u32;
+					api.resize(idx, nw, nh);
+				},
+				onpointerup: move |_| {
+					if resize().is_none() {
+						return;
+					}
+					resize.set(None);
+					api.grid.write().state = GridState::Settled;
+				},
+				onpointercancel: move |_| {
+					if resize().is_none() {
+						return;
+					}
+					resize.set(None);
+					api.grid.write().state = GridState::Settled;
+				},
 			}
+			// Cursor-only scrim while resizing: captured pointer events all go to the handle (this
+			// receives none), it just keeps the resize cursor steady over whatever the pointer crosses.
 			if resize().is_some() {
-				div {
-					style: "position:fixed; inset:0; z-index:1000; cursor:nwse-resize;",
-					onpointermove: move |e: PointerEvent| {
-						let Some(s) = resize() else { return };
-						let c = e.client_coordinates();
-						let (sw, sh) = step();
-							let dw = ((c.x - s.px) / sw).round() as i64;
-						let dh = ((c.y - s.py) / sh).round() as i64;
-						let nw = (s.w as i64 + dw).max(1) as u32;
-						let nh = (s.h as i64 + dh).max(1) as u32;
-						api.resize(idx, nw, nh);
-					},
-					onpointerup: move |_| {
-						resize.set(None);
-						api.grid.write().state = GridState::Settled;
-					},
-					onpointercancel: move |_| {
-						resize.set(None);
-						api.grid.write().state = GridState::Settled;
-					},
-				}
+				div { style: "position:fixed; inset:0; z-index:1000; cursor:nwse-resize;" }
 			}
 		}
 	}
