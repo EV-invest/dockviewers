@@ -1,6 +1,6 @@
 [package]
 name = "dockview_dioxus"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2024"
 description = "A tiling/docking layout for Dioxus — panes split, resize, tab, float, and maximize, with the arrangement saved to JSON and restored on reload."
 license = "BlueOak-1.0.0"
