@@ -1,11 +1,13 @@
-# dockview_dioxus
+# dockviewers_dioxus
 ![Minimum Supported Rust Version](https://img.shields.io/badge/nightly-1.92+-ab6000.svg)
-[<img alt="crates.io" src="https://img.shields.io/crates/v/dockview_dioxus.svg?color=fc8d62&logo=rust" height="20" style=flat-square>](https://crates.io/crates/dockview_dioxus)
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs&style=flat-square" height="20">](https://docs.rs/dockview_dioxus)
-![Lines Of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/dockview_dioxus-loc.json)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/dockviewers_dioxus.svg?color=fc8d62&logo=rust" height="20" style=flat-square>](https://crates.io/crates/dockviewers_dioxus)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs&style=flat-square" height="20">](https://docs.rs/dockviewers_dioxus)
+![Lines Of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/dockviewers_dioxus-loc.json)
 <br>
-[<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockview_dioxus/errors.yml?branch=main&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/dockview_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
-[<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockview_dioxus/warnings.yml?branch=main&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/dockview_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
+[<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers_dioxus/errors.yml?branch=main&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/dockviewers_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
+[<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers_dioxus/warnings.yml?branch=main&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/dockviewers_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
+
+🌐 **[Live demo](https://ev-invest.github.io/dockview_dioxus/)** — no setup, runs in the browser.
 
 A tiling/docking layout for [Dioxus](https://dioxuslabs.com/) — the IDE/trading-terminal kind: panes split, resize, tab together, float, and maximize, with the arrangement saved to JSON and restored on reload. It's a Dioxus-idiomatic port of [`dockview-core`](https://github.com/mathuo/dockview): one pure `DockModel` in a `Signal` is the only source of truth, and the UI is declarative `rsx!` derived from it. User content lives in a stable, id-keyed overlay layer separate from the split-tree skeleton, so a panel keeps its component instance and inner state (a live chart, scroll, an unsaved textarea) while it's dragged across the grid.
 <!-- markdownlint-disable -->
@@ -26,7 +28,7 @@ Hand `DockArea` a list of `DockPanel`s (id + title + the `Element` to render); t
 
 ```rust
 use dioxus::prelude::*;
-use dockview_dioxus::{DockArea, DockPanel, PanelId};
+use dockviewers_dioxus::{DockArea, DockPanel, PanelId};
 
 fn app() -> Element {
     let panels = vec![
@@ -42,7 +44,7 @@ fn app() -> Element {
 }
 ```
 
-Runnable demo: `dx serve --example insilico --package dockview_dioxus --platform web`.
+Runnable demo: `dx serve --example insilico --package dockviewers_dioxus --platform web` — or open the [hosted demo](https://ev-invest.github.io/dockview_dioxus/), no local setup needed.
 
 **Props:** `panels` (order = stable overlay render order — don't reorder it, that remounts panels), `storage_key` (`localStorage` key for autosave/restore; `None` to disable), `on_ready` (`Option<Callback<DockApi>>`, fires once only on a fresh default layout — use it to script the initial split).
 

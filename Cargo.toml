@@ -24,7 +24,7 @@ color-eyre = "^0.6.5"
 derive-new = "^0"
 dioxus = { version = "^0.7" }
 dioxus-ssr = "0.7"
-dockviewers_core = { path = "dockviewers_core" }
+dockviewers_core = { path = "dockviewers_core", version = "0.1.9" }
 gloo-timers = "0.3"
 leptos = { version = "^0.7" }
 miette = { version = "^7.6.0", features = ["fancy", "serde", "syntect-highlighter"] }
