@@ -1,16 +1,16 @@
 [package]
-name = "dockview_dioxus"
+name = "dockviewers_dioxus"
 version = "0.1.9"
 edition = "2024"
-description = "A tiling/docking layout for Dioxus — panes split, resize, tab, float, and maximize, with the arrangement saved to JSON and restored on reload."
+description = "Dioxus binding for the dockviewers packed-grid tiling layout — panes split, resize, tab, float, and maximize, saved to JSON and restored on reload. Drives the framework-agnostic dockviewers_core engine."
 license = "BlueOak-1.0.0"
 repository = "https://github.com/valeratrades/dockview_dioxus"
-documentation = "https://docs.rs/dockview_dioxus"
+documentation = "https://docs.rs/dockviewers_dioxus"
 readme = "../README.md"
 keywords = ["dioxus", "layout", "docking", "tiling", "wasm"]
 categories = ["gui", "wasm"]
 
-# A packed-grid tiling layout library for Dioxus. Web-only (DOM-backed).
+# A packed-grid tiling layout for Dioxus. Web-only (DOM-backed).
 [lib]
 
 # `web` is default so `dx serve --example insilico` infers the platform (web) with no
@@ -21,15 +21,13 @@ categories = ["gui", "wasm"]
 default = ["web"]
 web = ["dioxus/web"]
 
-# localStorage persistence is web-only; gated so native `cargo check` stays green.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "HtmlElement", "DomRect", "Node", "NodeList", "EventTarget", "KeyboardEvent", "PointerEvent", "console"] }
+web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "HtmlElement", "DomRect", "Node", "NodeList", "EventTarget", "KeyboardEvent", "MouseEvent", "PointerEvent", "console"] }
 
 [dependencies]
 dioxus.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+dockviewers_core.workspace = true
 
 [dev-dependencies]
 gloo-timers = { workspace = true, features = ["futures"] }
@@ -38,10 +36,6 @@ gloo-timers = { workspace = true, features = ["futures"] }
 [[example]]
 name = "insilico"
 path = "../examples/insilico/main.rs"
-
-[[test]]
-name = "integration"
-path = "tests/integration/main.rs"
 
 [lints]
 workspace = true

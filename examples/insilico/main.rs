@@ -22,8 +22,10 @@ mod positions;
 mod trades;
 mod watchlist;
 
+use std::rc::Rc;
+
 use dioxus::prelude::*;
-use dockview_dioxus::{Breakpoint, Config, DockPanel, Group, GroupId, Keybind, MinSize, PackedApi, PackedArea, PackedGrid, PanelId, Step, persist};
+use dockviewers_dioxus::{Action, Breakpoint, Config, DockPanel, Group, GroupId, Keybind, MinSize, PackedApi, PackedArea, PackedState, PanelId, Step, persist};
 use market::{Market, xorshift};
 
 /// localStorage key prefix the layout round-trips through (see `dockview_dioxus::persist`/`serial`).
@@ -156,9 +158,9 @@ fn spawn(kind: Kind, w: u32, h: u32, mut panels: Signal<Vec<DockPanel>>, mut cou
 	let panel = make_panel(kind, &mut counter);
 	let id = panel.id.clone();
 	panels.write().push(panel);
-	let gid = api.grid.write().mint_group_id();
+	let gid = api.mint_group_id();
 	// A desktop-tuned width can exceed a phone band's columns; clamp so it doesn't spill the grid.
-	let w = w.min((api.cols)().max(1));
+	let w = w.min(api.cols().max(1));
 	api.place(Group::new(gid, id), w, h, kind.min());
 }
 
@@ -167,14 +169,12 @@ fn spawn(kind: Kind, w: u32, h: u32, mut panels: Signal<Vec<DockPanel>>, mut cou
 fn rebuild_panels(a: PackedApi, mut panels: Signal<Vec<DockPanel>>, mut counter: Signal<u64>) {
 	let mut rebuilt = Vec::new();
 	let mut next = 0u64;
-	for cell in &a.grid.read().cells {
-		for pid in &cell.group.tabs {
-			if let Some(kind) = kind_from_id(&pid.0) {
-				if let Some(n) = pid.0.rsplit_once('-').and_then(|(_, s)| s.parse::<u64>().ok()) {
-					next = next.max(n + 1);
-				}
-				rebuilt.push(panel_of(kind, pid.clone()));
+	for pid in a.tab_ids() {
+		if let Some(kind) = kind_from_id(&pid.0) {
+			if let Some(n) = pid.0.rsplit_once('-').and_then(|(_, s)| s.parse::<u64>().ok()) {
+				next = next.max(n + 1);
 			}
+			rebuilt.push(panel_of(kind, pid));
 		}
 	}
 	panels.set(rebuilt);
@@ -195,8 +195,8 @@ fn seed_fresh(panels: Signal<Vec<DockPanel>>, counter: Signal<u64>, a: PackedApi
 /// by reading the live layout JSON the closure's [`PackedApi`] hands it. Swap the `alert` for a
 /// real `fetch` to ship it.
 fn insilico_config() -> Config {
-	let save = Callback::new(|api: PackedApi| {
-		let msg = format!("Alt+S: would POST {} bytes of layout", api.save().len());
+	let save: Action = Rc::new(|st: &mut PackedState| {
+		let msg = format!("Alt+S: would POST {} bytes of layout", st.save().len());
 		#[cfg(target_arch = "wasm32")]
 		web_sys::window().expect("a browser window").alert_with_message(&msg).expect("alert");
 		#[cfg(not(target_arch = "wasm32"))]
@@ -234,8 +234,8 @@ fn app() -> Element {
 	use_effect(move || {
 		let Some(mut a) = api() else { return };
 		let mut panels = panels;
-		let bp = (a.breakpoint)();
-		let _ = a.grid.read();
+		// `breakpoint()` reads the state cell, so this effect re-runs on every settled edit (to persist).
+		let bp = a.breakpoint();
 		if *shown.peek() == Some(bp) {
 			persist::write(&key(bp), &a.save());
 			return;
@@ -244,7 +244,7 @@ fn app() -> Element {
 		if persist::read(&key(bp)).is_some_and(|json| a.load(&json).is_ok()) {
 			rebuild_panels(a, panels, counter);
 		} else {
-			*a.grid.write() = PackedGrid::default();
+			a.reset();
 			panels.write().clear();
 			seed_fresh(panels, counter, a);
 		}

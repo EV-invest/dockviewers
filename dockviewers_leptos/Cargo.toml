@@ -1,0 +1,31 @@
+[package]
+name = "dockviewers_leptos"
+version = "0.1.9"
+edition = "2024"
+description = "Leptos binding for the dockviewers packed-grid tiling layout. Drives the framework-agnostic dockviewers_core engine."
+license = "BlueOak-1.0.0"
+repository = "https://github.com/valeratrades/dockview_dioxus"
+readme = "../README.md"
+keywords = ["leptos", "layout", "docking", "tiling", "wasm"]
+categories = ["gui", "wasm"]
+
+[lib]
+
+# Trunk serves this CSR app as a `[[bin]]` (it can't target an `[[example]]`). It stays out of a
+# bare `cargo b` (that only builds `default-members`), so the workspace default build is unaffected.
+[[bin]]
+name = "insilico_leptos"
+path = "../examples/insilico_leptos/main.rs"
+
+[features]
+default = ["csr"]
+csr = ["leptos/csr"]
+
+[dependencies]
+dockviewers_core.workspace = true
+leptos.workspace = true
+wasm-bindgen.workspace = true
+web-sys = { workspace = true, features = ["Window", "Storage", "Document", "Element", "HtmlElement", "HtmlDivElement", "DomRect", "Node", "NodeList", "EventTarget", "KeyboardEvent", "MouseEvent", "PointerEvent", "console"] }
+
+[lints]
+workspace = true

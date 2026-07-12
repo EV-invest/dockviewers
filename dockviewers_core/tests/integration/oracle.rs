@@ -9,7 +9,7 @@
 
 use std::collections::HashSet;
 
-use dockview_dioxus::model::{
+use dockviewers_core::model::{
 	packed::{GridState, PackedGrid},
 	serial,
 };
