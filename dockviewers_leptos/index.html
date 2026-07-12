@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>InSilico (Leptos)</title>
     <!-- Trunk builds this crate's `insilico_leptos` bin to wasm and injects it; the app mounts into <body>. -->
-    <link data-trunk rel="rust" data-bin="insilico_leptos" />
+    <link data-trunk rel="rust" data-bin="insilico_leptos" data-cargo-features="csr" />
     <style>
       html, body { margin: 0; height: 100%; }
     </style>

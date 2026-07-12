@@ -18,7 +18,10 @@ name = "insilico_leptos"
 path = "../examples/insilico_leptos/main.rs"
 
 [features]
-default = ["csr"]
+# `csr` must NOT be default: a facade consumer (e.g. `site`) enabling `leptos/ssr` or `leptos/hydrate`
+# would otherwise be forced into `leptos/csr` too (mutually exclusive → build break). The standalone
+# trunk bin opts in via `data-cargo-features="csr"` in index.html.
+default = []
 csr = ["leptos/csr"]
 
 [dependencies]

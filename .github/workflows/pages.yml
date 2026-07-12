@@ -14,6 +14,10 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# .cargo/config.toml pins rustc-wrapper=sccache for local dev; runners have no sccache.
+env:
+  RUSTC_WRAPPER: ""
+
 jobs:
   build:
     runs-on: ubuntu-latest
