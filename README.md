@@ -7,7 +7,7 @@
 [<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers_dioxus/errors.yml?branch=main&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/dockviewers_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
 [<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers_dioxus/warnings.yml?branch=main&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/dockviewers_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
 
-🌐 **[Live demo](https://ev-invest.github.io/dockview_dioxus/)** — no setup, runs in the browser.
+🌐 **[Live demo](https://ev-invest.github.io/dockviewers/)** — no setup, runs in the browser.
 
 A tiling/docking layout for [Dioxus](https://dioxuslabs.com/) — the IDE/trading-terminal kind: panes split, resize, tab together, float, and maximize, with the arrangement saved to JSON and restored on reload. It's a Dioxus-idiomatic port of [`dockview-core`](https://github.com/mathuo/dockview): one pure `DockModel` in a `Signal` is the only source of truth, and the UI is declarative `rsx!` derived from it. User content lives in a stable, id-keyed overlay layer separate from the split-tree skeleton, so a panel keeps its component instance and inner state (a live chart, scroll, an unsaved textarea) while it's dragged across the grid.
 <!-- markdownlint-disable -->
@@ -44,7 +44,7 @@ fn app() -> Element {
 }
 ```
 
-Runnable demo: `dx serve --example insilico --package dockviewers_dioxus --platform web` — or open the [hosted demo](https://ev-invest.github.io/dockview_dioxus/), no local setup needed.
+Runnable demo: `dx serve --example insilico --package dockviewers_dioxus --platform web` — or open the [hosted demo](https://ev-invest.github.io/dockviewers/), no local setup needed.
 
 **Props:** `panels` (order = stable overlay render order — don't reorder it, that remounts panels), `storage_key` (`localStorage` key for autosave/restore; `None` to disable), `on_ready` (`Option<Callback<DockApi>>`, fires once only on a fresh default layout — use it to script the initial split).
 

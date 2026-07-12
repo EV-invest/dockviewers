@@ -20,7 +20,7 @@ fn app() -> Element {
 }
 ```
 
-Runnable demo: `dx serve --example insilico --package dockviewers_dioxus --platform web` — or open the [hosted demo](https://ev-invest.github.io/dockview_dioxus/), no local setup needed.
+Runnable demo: `dx serve --example insilico --package dockviewers_dioxus --platform web` — or open the [hosted demo](https://ev-invest.github.io/dockviewers/), no local setup needed.
 
 **Props:** `panels` (order = stable overlay render order — don't reorder it, that remounts panels), `storage_key` (`localStorage` key for autosave/restore; `None` to disable), `on_ready` (`Option<Callback<DockApi>>`, fires once only on a fresh default layout — use it to script the initial split).
 

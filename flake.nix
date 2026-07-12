@@ -83,7 +83,7 @@
                 exec ${pkgs.dioxus-cli}/bin/dx serve --example insilico --package dockviewers_dioxus "$@"
                 ;;
               leptos)
-                exec ${pkgs.trunk}/bin/trunk serve dockviewers_leptos/index.html "$@"
+                cd dockviewers_leptos && exec ${pkgs.trunk}/bin/trunk serve "$@"
                 ;;
               *)
                 echo "usage: nix run .#dev -- [dioxus|leptos] [extra serve args]" >&2
