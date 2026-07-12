@@ -1,7 +1,7 @@
 cargo-features = ["codegen-backend"]
 
 [workspace]
-members = ["dockviewers_core", "dockviewers_dioxus", "dockviewers_leptos"]
+members = ["dockviewers", "dockviewers_core", "dockviewers_dioxus", "dockviewers_leptos"]
 default-members = ["dockviewers_dioxus"]
 resolver = "3"
 
@@ -25,6 +25,8 @@ derive-new = "^0"
 dioxus = { version = "^0.7" }
 dioxus-ssr = "0.7"
 dockviewers_core = { path = "dockviewers_core", version = "0.1.9" }
+dockviewers_dioxus = { path = "dockviewers_dioxus", version = "0.1.9" }
+dockviewers_leptos = { path = "dockviewers_leptos", version = "0.1.9" }
 gloo-timers = "0.3"
 leptos = { version = "^0.7" }
 miette = { version = "^7.6.0", features = ["fancy", "serde", "syntect-highlighter"] }

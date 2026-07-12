@@ -1104,6 +1104,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dockviewers"
+version = "0.1.9"
+dependencies = [
+ "dockviewers_core",
+ "dockviewers_dioxus",
+ "dockviewers_leptos",
+]
+
+[[package]]
 name = "dockviewers_core"
 version = "0.1.9"
 dependencies = [

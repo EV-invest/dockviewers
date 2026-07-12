@@ -1,0 +1,28 @@
+[package]
+name = "dockviewers"
+version = "0.1.9"
+edition = "2024"
+description = "Packed-grid tiling/docking layout — a framework-agnostic engine with optional Dioxus and Leptos bindings behind feature flags. Panes split, resize, tab, float, and maximize, saved to JSON and restored on reload."
+license = "BlueOak-1.0.0"
+repository = "https://github.com/valeratrades/dockviewers"
+documentation = "https://docs.rs/dockviewers"
+readme = "../README.md"
+keywords = ["layout", "docking", "tiling", "dioxus", "leptos"]
+categories = ["gui", "wasm"]
+
+# Facade over the ecosystem: the engine (`dockviewers_core`) is always present; a UI binding is
+# pulled in by its feature. Depending on this crate vs. the individual crates is purely ergonomic.
+[lib]
+
+[features]
+default = []
+dioxus = ["dep:dockviewers_dioxus"]
+leptos = ["dep:dockviewers_leptos"]
+
+[dependencies]
+dockviewers_core.workspace = true
+dockviewers_dioxus = { workspace = true, optional = true }
+dockviewers_leptos = { workspace = true, optional = true }
+
+[lints]
+workspace = true
