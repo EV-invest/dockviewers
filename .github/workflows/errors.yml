@@ -5,7 +5,7 @@ env:
   RUST_BACKTRACE: short
 jobs:
   pre_ci:
-    uses: valeratrades/.github/.github/workflows/pre_ci.yml@master
+    uses: valeratrades/.github/.github/workflows/pre_ci.yml@main
   rust-tests:
     if: needs.pre_ci.outputs.continue
     name: Rust ${{matrix.rust}}

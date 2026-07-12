@@ -62,10 +62,22 @@ venv/
 
 ## Web
 **/*.sass-cache/
-./*/node_modules/
+**/node_modules/
+**/.next/
+**/.turbo/
+**/dist/
+
+## LLMs
+AGENTS.md
+CLAUDE.md
+.claude/
 
 ## Other Tools
 .codeviz/
+**/.redis/
+**/.tb/
+**/.tb-client
+**/.pg/
 ## Rust
 **/**.pending-snap
 ### could be used for initial debugging of apps using `config` crate
