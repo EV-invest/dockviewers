@@ -2,7 +2,7 @@
 //! [`PackedGrid`], and the generator enumerates only valid targets each step (matklad's
 //! "non-crashed replicas only") so no entropy is spent on impossible picks.
 
-use dockview_dioxus::{
+use dockviewers_core::{
 	GroupId,
 	model::packed::{DragSource, DropTarget},
 };
@@ -58,7 +58,7 @@ pub fn apply(action: &Action, world: &mut World) -> Result<(), String> {
 			world.structural_edit();
 			let gid = world.grid.mint_group_id();
 			let panel = world.mint_panel();
-			world.grid.place(dockview_dioxus::Group::new(gid, panel), *w, *h, (*min_w, *min_h), world.cols);
+			world.grid.place(dockviewers_core::Group::new(gid, panel), *w, *h, (*min_w, *min_h), world.cols);
 		}
 		Action::Resize { idx, new_w, new_h } => {
 			world.structural_edit();

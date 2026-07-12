@@ -10,7 +10,7 @@ downstream action — so it's stable regardless of layout state.
 Needs a host that mounts `PackedArea`. Serve the bundled example:
 
 ```sh
-dx serve --example insilico --package dockview_dioxus --platform web --port 8111
+dx serve --example insilico --package dockviewers_dioxus --platform web --port 8111
 ```
 
 then, from this dir:

@@ -1,0 +1,29 @@
+[package]
+name = "dockviewers_core"
+version = "0.1.9"
+edition = "2024"
+description = "Framework-agnostic engine for the dockviewers packed-grid tiling layout: the grid model, the gesture reducer, persistence, and CSS — no UI framework."
+license = "BlueOak-1.0.0"
+repository = "https://github.com/valeratrades/dockviewers"
+documentation = "https://docs.rs/dockviewers_core"
+readme = "../README.md"
+keywords = ["layout", "docking", "tiling", "wasm", "grid"]
+categories = ["gui", "wasm"]
+
+[lib]
+
+# Touching `window`/DOM is web-only; gated so native `cargo check`/`cargo test` stay green.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "DomRect", "Node", "NodeList", "console"] }
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+
+[lints]
+workspace = true

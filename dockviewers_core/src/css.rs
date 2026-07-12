@@ -1,28 +1,13 @@
-//! The Dioxus render layer — everything DOM. Dockview's per-class `this.element`
-//! ownership is replaced by declarative `rsx!` derived from the model `Signal`.
-//!
-//! Two stacked layers, mirroring dockview:
-//! 1. the tile *skeleton*: absolutely-positioned frames, tab strips, resize grips. Holds
-//!    **no** user content, so restructuring it is harmless.
-//! 2. a flat, id-keyed *content overlay* (`OverlayRenderContainer` equivalent): one
-//!    absolutely-positioned div per panel. Stable keys ⇒ instances never remount.
-//!
-//! Both are positioned from the model's integer grid rects (no DOM measuring), so a tile
-//! and its content share identical math and cannot drift apart — see [`packed`].
+//! Minimal structural stylesheet. Layout (positioning/sizing) ships with the lib; all
+//! colors/sizes read from `--dv-*` custom properties so a host can re-theme without us
+//! hardcoding a palette. Both bindings inject this verbatim into a `<style>`.
 
-pub mod packed;
-
-use crate::math::Rect;
-
-/// Minimal structural stylesheet. Layout (positioning/sizing) ships with the lib; all
-/// colors/sizes read from `--dv-*` custom properties so a host can re-theme without us
-/// hardcoding a palette.
-pub(crate) const CSS: &str = r#"
+pub const CSS: &str = r#"
 .dv-group { display: flex; flex-direction: column; width: 100%; height: 100%;
 	background: var(--dv-group-bg, #1e1e1e); }
 /* One header bar holds the tabs and the actions (insilico's elevated tab strip); the active
    tab is the title, so there's no separate titlebar. Height is pinned (box-sizing: border-box)
-   so the content overlay's fixed chrome offset (CHROME_H in render::packed) matches the skeleton.
+   so the content overlay's fixed chrome offset (CHROME_H in state) matches the skeleton.
    Its empty area is the tile's move-handle; tabs/actions stop propagation for their own gestures. */
 .dv-header { flex: 0 0 auto; height: 32px; box-sizing: border-box; display: flex;
 	align-items: stretch; overflow: hidden; cursor: grab; background: var(--dv-tabstrip-bg, #2d2d2d); }
@@ -73,14 +58,3 @@ pub(crate) const CSS: &str = r#"
 	border: 1px solid var(--dv-accent, #63e9cd);
 	color: var(--dv-tab-active-fg, #fff); font: 600 18px ui-monospace, monospace; }
 "#;
-
-impl From<dioxus::html::geometry::PixelsRect> for Rect {
-	fn from(r: dioxus::html::geometry::PixelsRect) -> Self {
-		Rect {
-			x: r.origin.x,
-			y: r.origin.y,
-			width: r.size.width,
-			height: r.size.height,
-		}
-	}
-}

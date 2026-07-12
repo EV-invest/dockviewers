@@ -1,7 +1,11 @@
-//! Host-supplied configuration for [`PackedArea`](crate::render::packed::PackedArea).
-//! Today just keybinds; passed once as a prop. Binds match the **produced character**
-//! (`KeyboardEvent.key()`), so they follow the user's keyboard layout instead of a hardcoded
-//! QWERTY physical position.
+//! Host-supplied configuration for the packed layout. Keybinds plus host-registered chords;
+//! passed once into [`PackedState`](crate::state::PackedState). Binds match the **produced
+//! character** (`KeyboardEvent.key()`), so they follow the user's keyboard layout instead of a
+//! hardcoded QWERTY physical position.
+
+use std::rc::Rc;
+
+use crate::state::PackedState;
 
 /// A single chord: the character the key produces, plus the non-shift modifiers held. Shift is
 /// already baked into `key` (`"u"` vs `"U"`), so it isn't a separate flag.
@@ -22,8 +26,8 @@ impl Keybind {
 
 /// Chords acting on the layout / the focused pane. Defaults: `u` / `U` for the undo tree,
 /// `Backspace` to close the focused pane, `f` to toggle maximize on it, `?` for the keybind hint.
-/// They never fire while an editable field is focused (see the listener), so bare letters don't
-/// hijack typing.
+/// They never fire while an editable field is focused (see the binding's listener), so bare letters
+/// don't hijack typing.
 #[derive(Clone, Copy, PartialEq)]
 pub struct Keybinds {
 	pub undo: Keybind = Keybind { key: "u", alt: false, ctrl: false },
@@ -39,13 +43,18 @@ impl Default for Keybinds {
 	}
 }
 
-#[derive(Clone, Default, PartialEq)]
+/// A host-registered chord's action: arbitrary code over the live layout. Framework-agnostic —
+/// the binding invokes it against its reactive cell's [`PackedState`]. `Rc` (not `Box`) so
+/// [`Config`] stays `Clone` for a binding that hands it around by prop.
+pub type Action = Rc<dyn Fn(&mut PackedState)>;
+
+#[derive(Clone, Default)]
 pub struct Config {
 	pub keybinds: Keybinds,
 	/// Host-registered chords, each running arbitrary code over the live layout. Built-ins win on
-	/// collision (the listener tries them first); the closure gets the same [`PackedApi`] `on_ready`
-	/// hands out, so it can `save()` the current layout. A bare `Vec` is the whole API.
-	pub actions: Vec<(Keybind, dioxus::prelude::Callback<crate::render::packed::PackedApi>)>,
+	/// collision (the listener tries them first); the action mutates the same [`PackedState`] the
+	/// host script drives, so it can `save()` the current layout. A bare `Vec` is the whole API.
+	pub actions: Vec<(Keybind, Action)>,
 	/// Desktop (`Xl`) column count: how many grid steps span the container's width on a wide screen.
 	/// Smaller [`Breakpoint`]s scale this down so the *physical* step stays ~constant and tiles reflow
 	/// instead of shrinking (see [`Breakpoint::scale_cols`]). The rendered horizontal step is
@@ -57,6 +66,18 @@ pub struct Config {
 	/// already tracks the screen without help. Dividing by a *fixed* row count, not the used rows,
 	/// keeps the whitespace-below look. The default ≈ a square step on a 16∶9 container (`64 × 9/16`).
 	pub rows: u32 = 36,
+}
+
+/// Config never changes at runtime; a binding compares it only to decide whether to re-seed. The
+/// action closures have no identity, so equality is over the keybinds and the registered chords.
+impl PartialEq for Config {
+	fn eq(&self, other: &Self) -> bool {
+		self.keybinds == other.keybinds
+			&& self.steps == other.steps
+			&& self.rows == other.rows
+			&& self.actions.len() == other.actions.len()
+			&& self.actions.iter().zip(&other.actions).all(|(a, b)| a.0 == b.0)
+	}
 }
 
 /// Responsive width bands — Bootstrap's xs/sm/md/lg/xl boundaries (CSS px). The grid's column and

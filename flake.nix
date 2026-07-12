@@ -19,7 +19,7 @@
         # the nix store dedups it and sccache cross-references compilations.
         rust = v_flakes.rs.default_nightly system;
         pre-commit-check = pre-commit-hooks.lib.${system}.run (v_flakes.files.preCommit { inherit pkgs; });
-        manifest = (pkgs.lib.importTOML ./dockview_dioxus/Cargo.toml).package;
+        manifest = (pkgs.lib.importTOML ./dockviewers_dioxus/Cargo.toml).package;
         pname = manifest.name;
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
 
@@ -28,7 +28,7 @@
           build = {
             deny = false;
             workspace = let deprecate_by = "v1.0.0"; in {
-              "./dockview_dioxus/" = [ "git_version" "log_directives" { deprecate = { by_version = deprecate_by; force = true; }; } ];
+              "./dockviewers_core/" = [ "git_version" "log_directives" { deprecate = { by_version = deprecate_by; force = true; }; } ];
             };
           };
         };
@@ -71,10 +71,25 @@
             };
           };
 
+        # `nix run .#dev -- <framework>` boots the matching example (default: dioxus). Extra args
+        # pass through to the underlying serve command, e.g. `nix run .#dev -- leptos --port 9000`.
         apps.dev = {
           type = "app";
           program = "${pkgs.writeShellScript "dev" ''
-            exec ${pkgs.dioxus-cli}/bin/dx serve --example insilico --package dockview_dioxus
+            framework="$1"; shift 2>/dev/null || true
+            [ -z "$framework" ] && framework=dioxus
+            case "$framework" in
+              dioxus)
+                exec ${pkgs.dioxus-cli}/bin/dx serve --example insilico --package dockviewers_dioxus "$@"
+                ;;
+              leptos)
+                cd dockviewers_leptos && exec ${pkgs.trunk}/bin/trunk serve "$@"
+                ;;
+              *)
+                echo "usage: nix run .#dev -- [dioxus|leptos] [extra serve args]" >&2
+                exit 1
+                ;;
+            esac
           ''}";
         };
 
@@ -97,6 +112,8 @@
               # nixpkgs dioxus-cli vendors wasm-bindgen 0.2.118 but the crate graph pins =0.2.125;
               # dx uses the matching external binary if present: `cargo binstall wasm-bindgen-cli@0.2.125`.
               dioxus-cli
+              # Serves the Leptos CSR example: `nix run .#dev -- leptos`.
+              trunk
             ] ++ pre-commit-check.enabledPackages ++ combined.enabledPackages;
 
             env.RUST_BACKTRACE = 1;

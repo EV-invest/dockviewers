@@ -9,11 +9,17 @@ jobs:
         loc_gist_token: ${{ secrets.loc_gist_token }}
       name: Ensure loc_gist_token secret is configured
       run: "if [ -z \"${loc_gist_token}\" ]; then\n  echo \"::error::Secret 'loc_gist_token'\
-        \ is not set. Add it under Settings → Secrets and variables → Actions (repo-level,\
-        \ or org-level with 'All repositories' visibility to cover every repo).\"\n\
-        \  echo \"::error::Create a token, then: gh secret set loc_gist_token --repo\
-        \ <owner>/<repo> --body YOUR_TOKEN\"\n  echo \"::error::Bulk-provision all\
-        \ repos: https://github.com/valeratrades/nix/tree/e4338bf5943d7403b949a8e079f9073987d9cd68/home/scripts/shared_github_secrets.bash\"\
+        \ is not set (empty in this job).\"\n  if [ \"${{ github.event.repository.private\
+        \ }}\" = \"true\" ]; then\n    echo \"::error::This repo is PRIVATE. On GitHub\
+        \ Free-plan orgs, organization secrets are NOT exposed to private repos —\
+        \ if 'loc_gist_token' is set org-wide it still won't reach here. Fix: set\
+        \ it repo-level (gh secret set loc_gist_token -R ${{ github.repository }}),\
+        \ or upgrade the org to Team/Enterprise.\"\n  else\n    echo \"::error::Add\
+        \ it under Settings → Secrets and variables → Actions (repo-level, or org-level\
+        \ with 'All repositories' visibility — org secrets reach public repos on any\
+        \ plan).\"\n  fi\n  echo \"::error::Create a token, then: gh secret set loc_gist_token\
+        \ --repo <owner>/<repo> --body YOUR_TOKEN\"\n  echo \"::error::Bulk-provision\
+        \ all repos: https://github.com/valeratrades/nix/tree/e4338bf5943d7403b949a8e079f9073987d9cd68/home/scripts/shared_github_secrets.bash\"\
         \n  exit 1\nfi\n"
     - name: Install tokei
       run: cargo install tokei

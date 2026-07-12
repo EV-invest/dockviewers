@@ -4,7 +4,7 @@ Hand `DockArea` a list of `DockPanel`s (id + title + the `Element` to render); t
 
 ```rust
 use dioxus::prelude::*;
-use dockview_dioxus::{DockArea, DockPanel, PanelId};
+use dockviewers_dioxus::{DockArea, DockPanel, PanelId};
 
 fn app() -> Element {
     let panels = vec![
@@ -20,7 +20,7 @@ fn app() -> Element {
 }
 ```
 
-Runnable demo: `dx serve --example insilico --package dockview_dioxus --platform web`.
+Runnable demo: `dx serve --example insilico --package dockviewers_dioxus --platform web` — or open the [hosted demo](https://ev-invest.github.io/dockviewers/), no local setup needed.
 
 **Props:** `panels` (order = stable overlay render order — don't reorder it, that remounts panels), `storage_key` (`localStorage` key for autosave/restore; `None` to disable), `on_ready` (`Option<Callback<DockApi>>`, fires once only on a fresh default layout — use it to script the initial split).
 

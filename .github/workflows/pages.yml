@@ -1,0 +1,46 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: dioxus-cli,wasm-bindgen-cli@0.2.125
+      # dx --release runs wasm-opt; install it so the build doesn't depend on dx auto-fetching it.
+      - run: sudo apt-get update && sudo apt-get install -y binaryen
+      # Pages serves this project site under /dockviewers/; base_path is baked into the
+      # wasm at compile time. --base-path keeps it CI-only, so local `dx serve` stays at / .
+      - name: Build wasm
+        run: dx build --release --platform web --example insilico --package dockviewers_dioxus --base-path dockviewers
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/dx/insilico/release/web/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

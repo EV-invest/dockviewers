@@ -2,7 +2,7 @@
 //! oracle after every step. A run is fully reproducible from its `(seed, size)`, so `minimize`
 //! can re-run it freely.
 
-use dockview_dioxus::{
+use dockviewers_core::{
 	GroupId, PanelId,
 	model::{Group, packed::PackedGrid},
 };
