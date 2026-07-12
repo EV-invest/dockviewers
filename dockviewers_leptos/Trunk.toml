@@ -1,5 +1,0 @@
-# Trunk build output → the repo-root `result/{crate}/dist/`, alongside where nix build artifacts
-# go. The `.gitignore` `result` rule (matches a `result` component at any depth) keeps the
-# generated wasm/js out of git.
-[build]
-dist = "../result/dockviewers_leptos/dist"
