@@ -1118,7 +1118,7 @@ dependencies = [
 
 [[package]]
 name = "dockviewers"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "dockviewers_core",
  "dockviewers_dioxus",
@@ -1148,7 +1148,7 @@ dependencies = [
 
 [[package]]
 name = "dockviewers_leptos"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "dockviewers_core",
  "leptos",

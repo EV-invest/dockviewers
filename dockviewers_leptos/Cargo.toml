@@ -1,6 +1,6 @@
 [package]
 name = "dockviewers_leptos"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2024"
 description = "Leptos binding for the dockviewers packed-grid tiling layout. Drives the framework-agnostic dockviewers_core engine."
 license = "BlueOak-1.0.0"
