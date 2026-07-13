@@ -1,6 +1,6 @@
 [package]
 name = "dockviewers_core"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2024"
 description = "Framework-agnostic engine for the dockviewers packed-grid tiling layout: the grid model, the gesture reducer, persistence, and CSS — no UI framework."
 license = "BlueOak-1.0.0"

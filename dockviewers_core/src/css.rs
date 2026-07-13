@@ -22,7 +22,8 @@ pub const CSS: &str = r#"
 	color: var(--dv-tab-active-fg, #fff); }
 .dv-content-slot { flex: 1 1 auto; overflow: hidden; }
 .dv-overlay { position: absolute; inset: 0; pointer-events: none; }
-.dv-render-overlay { position: absolute; overflow: hidden; pointer-events: auto; }
+.dv-render-overlay { position: absolute; overflow: hidden; pointer-events: auto;
+	box-sizing: border-box; padding: var(--dv-content-pad, 6px 10px); }
 .dv-resize-handle { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px;
 	cursor: nwse-resize; z-index: 101; background: var(--dv-resize-bg, #555); }
 .dv-resize-handle::after { content: "⌟"; position: absolute; right: 1px; bottom: -3px;
