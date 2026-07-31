@@ -81,36 +81,29 @@ impl Kind {
 		Kind::News,
 	];
 
-	fn id(self) -> &'static str {
+	/// `(panel-id prefix, tab label)` — one arm, so the two can't drift apart.
+	fn meta(self) -> (&'static str, &'static str) {
 		match self {
-			Kind::Chart => "chart",
-			Kind::OrderBook => "orderbook",
-			Kind::Trades => "trades",
-			Kind::Positions => "positions",
-			Kind::Orders => "orders",
-			Kind::Balances => "balances",
-			Kind::Watchlist => "watchlist",
-			Kind::PlaceOrder => "place",
-			Kind::Console => "console",
-			Kind::Chat => "chat",
-			Kind::News => "news",
+			Kind::Chart => ("chart", "Chart"),
+			Kind::OrderBook => ("orderbook", "Order Book"),
+			Kind::Trades => ("trades", "Trades"),
+			Kind::Positions => ("positions", "Positions"),
+			Kind::Orders => ("orders", "Orders"),
+			Kind::Balances => ("balances", "Balances"),
+			Kind::Watchlist => ("watchlist", "Watchlist"),
+			Kind::PlaceOrder => ("place", "Place Order"),
+			Kind::Console => ("console", "Console"),
+			Kind::Chat => ("chat", "#general"),
+			Kind::News => ("news", "News"),
 		}
 	}
 
+	fn id(self) -> &'static str {
+		self.meta().0
+	}
+
 	fn title(self) -> &'static str {
-		match self {
-			Kind::Chart => "Chart",
-			Kind::OrderBook => "Order Book",
-			Kind::Trades => "Trades",
-			Kind::Positions => "Positions",
-			Kind::Orders => "Orders",
-			Kind::Balances => "Balances",
-			Kind::Watchlist => "Watchlist",
-			Kind::PlaceOrder => "Place Order",
-			Kind::Console => "Console",
-			Kind::Chat => "#general",
-			Kind::News => "News",
-		}
+		self.meta().1
 	}
 
 	fn min(self) -> MinSize {

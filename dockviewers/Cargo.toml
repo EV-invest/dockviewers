@@ -10,6 +10,10 @@ readme = "../README.md"
 keywords = ["layout", "docking", "tiling", "dioxus", "leptos"]
 categories = ["gui", "wasm"]
 
+# The facade's own docs link into the binding re-exports, which only exist with their features on.
+[package.metadata.docs.rs]
+all-features = true
+
 # Facade over the ecosystem: the engine (`dockviewers_core`) is always present; a UI binding is
 # pulled in by its feature. Depending on this crate vs. the individual crates is purely ergonomic.
 [lib]

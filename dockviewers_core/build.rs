@@ -43,18 +43,16 @@ fn deprecate() {
 	let src_dir = std::path::Path::new("src");
 	if src_dir.exists() {
 		// Force mode: rewrite all since attributes to target version
-		if DEPRECATE_FORCE {
-			if let Some(target_version) = DEPRECATE_BY_VERSION {
-				let mut force_updates = Vec::new();
-				collect_force_updates(src_dir, target_version, &mut force_updates);
-				for (path, line_num, old_line) in &force_updates {
-					if let Err(e) = update_since_in_file(path, *line_num, old_line, target_version) {
-						eprintln!("Warning: failed to update {}: {}", path, e);
-					}
+		if let Some(target_version) = DEPRECATE_BY_VERSION.filter(|_| DEPRECATE_FORCE) {
+			let mut force_updates = Vec::new();
+			collect_force_updates(src_dir, target_version, &mut force_updates);
+			for (path, line_num, old_line) in &force_updates {
+				if let Err(e) = update_since_in_file(path, *line_num, old_line, target_version) {
+					eprintln!("Warning: failed to update {}: {}", path, e);
 				}
-				// In force mode, we just update files and exit - no validation
-				return;
 			}
+			// In force mode, we just update files and exit - no validation
+			return;
 		}
 
 		let mut expired_items = Vec::new();
@@ -109,42 +107,39 @@ fn find_deprecated_attrs(
 		if path.is_dir() {
 			find_deprecated_attrs(&path, current, default_deprecate_at, expired, missing_since);
 		} else if path.extension().is_some_and(|ext| ext == "rs") {
-			if let Ok(content) = std::fs::read_to_string(&path) {
-				// Auto-patch legacy v-prefixed since values
-				patch_legacy_v_prefix(&path, &content);
+			let Ok(content) = std::fs::read_to_string(&path) else {
+				continue;
+			};
+			// Auto-patch legacy v-prefixed since values
+			patch_legacy_v_prefix(&path, &content);
 
-				// Re-read content after potential patching
-				let content = std::fs::read_to_string(&path).unwrap_or(content);
+			// Re-read content after potential patching
+			let content = std::fs::read_to_string(&path).unwrap_or(content);
 
-				for (line_num, line) in content.lines().enumerate() {
-					let trimmed = line.trim_start();
-					if trimmed.starts_with("#[deprecated") {
-						let loc = format!("{}:{}", path.display(), line_num + 1);
+			for (line_num, line) in content.lines().enumerate() {
+				let trimmed = line.trim_start();
+				if trimmed.starts_with("#[deprecated") {
+					let loc = format!("{}:{}", path.display(), line_num + 1);
 
-						if let Some(since_version) = extract_since(trimmed) {
-							// Has since attribute
-							let deprecate_at = parse_semver(since_version);
-							if current >= deprecate_at {
-								expired.push((loc, since_version.to_string()));
-							}
-						} else {
-							// No since attribute
-							if let Some(default_at) = default_deprecate_at {
-								if current >= default_at {
-									expired.push((loc, DEPRECATE_BY_VERSION.unwrap().to_string()));
-								}
-							} else {
-								missing_since.push(loc);
-							}
+					if let Some(since_version) = extract_since(trimmed) {
+						// Has since attribute
+						let deprecate_at = parse_semver(since_version);
+						if current >= deprecate_at {
+							expired.push((loc, since_version.to_string()));
 						}
-					} else if trimmed.starts_with("#[allow(deprecated") {
-						// #[allow(deprecated)] should always be removed by default version
+					} else {
+						// No since attribute
 						if let Some(default_at) = default_deprecate_at {
 							if current >= default_at {
-								expired.push((format!("{}:{}", path.display(), line_num + 1), DEPRECATE_BY_VERSION.unwrap().to_string()));
+								expired.push((loc, DEPRECATE_BY_VERSION.unwrap().to_string()));
 							}
+						} else {
+							missing_since.push(loc);
 						}
 					}
+				// #[allow(deprecated)] should always be removed by default version
+				} else if trimmed.starts_with("#[allow(deprecated") && default_deprecate_at.is_some_and(|at| current >= at) {
+					expired.push((format!("{}:{}", path.display(), line_num + 1), DEPRECATE_BY_VERSION.unwrap().to_string()));
 				}
 			}
 		}
@@ -162,15 +157,16 @@ fn collect_force_updates(dir: &std::path::Path, target_version: &str, updates: &
 		if path.is_dir() {
 			collect_force_updates(&path, target_version, updates);
 		} else if path.extension().is_some_and(|ext| ext == "rs") {
-			if let Ok(content) = std::fs::read_to_string(&path) {
-				for (line_num, line) in content.lines().enumerate() {
-					let trimmed = line.trim_start();
-					if trimmed.starts_with("#[deprecated") {
-						// Check if since is missing or differs from target
-						match extract_since(trimmed) {
-							Some(v) if v == target_version => {} // Already correct
-							_ => updates.push((path.display().to_string(), line_num, line.to_string())),
-						}
+			let Ok(content) = std::fs::read_to_string(&path) else {
+				continue;
+			};
+			for (line_num, line) in content.lines().enumerate() {
+				let trimmed = line.trim_start();
+				if trimmed.starts_with("#[deprecated") {
+					// Check if since is missing or differs from target
+					match extract_since(trimmed) {
+						Some(v) if v == target_version => {} // Already correct
+						_ => updates.push((path.display().to_string(), line_num, line.to_string())),
 					}
 				}
 			}
@@ -182,39 +178,26 @@ fn collect_force_updates(dir: &std::path::Path, target_version: &str, updates: &
 //DEPRECATE: had some libs wrongly formatted, - here due to legacy. Won't be ran in normal workflows, - so it's fine that we're modifying files in place.
 fn patch_legacy_v_prefix(path: &std::path::Path, content: &str) {
 	let mut needs_patch = false;
+	let mut new_lines = Vec::new();
 	for line in content.lines() {
 		let trimmed = line.trim_start();
-		if trimmed.starts_with("#[deprecated") {
-			if let Some(since_version) = extract_since(trimmed) {
-				if since_version.starts_with('v') {
-					needs_patch = true;
-					break;
-				}
+		let legacy = extract_since(trimmed)
+			.filter(|_| trimmed.starts_with("#[deprecated"))
+			.and_then(|since_version| Some((since_version, since_version.strip_prefix('v')?)));
+		match legacy {
+			Some((since_version, corrected_version)) => {
+				needs_patch = true;
+				new_lines.push(
+					line.replace(&format!("since = \"{}\"", since_version), &format!("since = \"{}\"", corrected_version))
+						.replace(&format!("since=\"{}\"", since_version), &format!("since = \"{}\"", corrected_version)),
+				);
 			}
+			None => new_lines.push(line.to_string()),
 		}
 	}
 
 	if !needs_patch {
 		return;
-	}
-
-	let mut new_lines = Vec::new();
-	for line in content.lines() {
-		let trimmed = line.trim_start();
-		if trimmed.starts_with("#[deprecated") {
-			if let Some(since_version) = extract_since(trimmed) {
-				if since_version.starts_with('v') {
-					// Strip the 'v' prefix
-					let corrected_version = &since_version[1..];
-					let new_line = line
-						.replace(&format!("since = \"{}\"", since_version), &format!("since = \"{}\"", corrected_version))
-						.replace(&format!("since=\"{}\"", since_version), &format!("since = \"{}\"", corrected_version));
-					new_lines.push(new_line);
-					continue;
-				}
-			}
-		}
-		new_lines.push(line.to_string());
 	}
 
 	let mut new_content = new_lines.join("\n");
@@ -249,7 +232,7 @@ fn update_since_in_file(path: &str, line_num: usize, old_line: &str, target_vers
 	let lines: Vec<&str> = content.lines().collect();
 
 	// Verify line still matches
-	if lines.get(line_num) != Some(&old_line.as_ref()) {
+	if lines.get(line_num) != Some(&old_line) {
 		return Ok(()); // Line changed, skip
 	}
 
@@ -278,12 +261,9 @@ fn update_deprecated_since(line: &str, version: &str) -> String {
 		let after_since = &trimmed[since_start + 5..];
 		// Find the = and the quoted value
 		if let Some(eq_pos) = after_since.find('=') {
-			let after_eq = &after_since[eq_pos + 1..].trim_start();
-			if after_eq.starts_with('"') {
-				if let Some(end_quote) = after_eq[1..].find('"') {
-					let after_value = &after_eq[end_quote + 2..];
-					return format!("{}{}since = \"{}\"{}", indent, before_since, version, after_value);
-				}
+			let after_eq = after_since[eq_pos + 1..].trim_start();
+			if let Some(after_value) = after_eq.strip_prefix('"').and_then(|q| q.split_once('"')).map(|(_, rest)| rest) {
+				return format!("{}{}since = \"{}\"{}", indent, before_since, version, after_value);
 			}
 		}
 	}

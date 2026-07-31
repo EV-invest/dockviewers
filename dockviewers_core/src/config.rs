@@ -1,5 +1,5 @@
 //! Host-supplied configuration for the packed layout. Keybinds plus host-registered chords;
-//! passed once into [`PackedState`](crate::state::PackedState). Binds match the **produced
+//! passed once into [`PackedState`]. Binds match the **produced
 //! character** (`KeyboardEvent.key()`), so they follow the user's keyboard layout instead of a
 //! hardcoded QWERTY physical position.
 
@@ -27,19 +27,13 @@ impl Keybind {
 /// `Backspace` to close the focused pane, `f` to toggle maximize on it, `?` for the keybind hint.
 /// They never fire while an editable field is focused (see the binding's listener), so bare letters
 /// don't hijack typing.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct Keybinds {
 	pub undo: Keybind = Keybind { key: "u", alt: false, ctrl: false },
 	pub redo: Keybind = Keybind { key: "U", alt: false, ctrl: false },
 	pub close: Keybind = Keybind { key: "Backspace", alt: false, ctrl: false },
 	pub maximize: Keybind = Keybind { key: "f", alt: false, ctrl: false },
 	pub help: Keybind = Keybind { key: "?", alt: false, ctrl: false },
-}
-
-impl Default for Keybinds {
-	fn default() -> Self {
-		Self { .. }
-	}
 }
 
 /// A host-registered chord's action: arbitrary code over the live layout. Framework-agnostic —
@@ -56,7 +50,7 @@ pub struct Config {
 	pub actions: Vec<(Keybind, Action)>,
 	/// Desktop (`Xl`) column count: how many grid steps span the container's width on a wide screen.
 	/// Smaller [`Breakpoint`]s scale this down so the *physical* step stays ~constant and tiles reflow
-	/// instead of shrinking (see [`Breakpoint::scale_cols`]). The rendered horizontal step is
+	/// instead of shrinking (see `Breakpoint::scale_cols`). The rendered horizontal step is
 	/// `container_width / cols`, so within a band the layout still stretches to fill. A finer grid
 	/// (more steps) gives smaller resize/placement increments.
 	pub steps: u32 = 64,

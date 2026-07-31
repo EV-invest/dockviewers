@@ -59,7 +59,7 @@ pub struct Cell {
 	#[serde(default)]
 	pub desired_x: Option<u32>,
 	/// Vertical stacking order, fixed at the last structural edit (see
-	/// [`reassign_ranks`](PackedGrid::reassign_ranks)). [`refit`](PackedGrid::refit) settles by this,
+	/// `reassign_ranks`). [`refit`](PackedGrid::refit) settles by this,
 	/// not by the transient `y`, so collapsing tiles into a narrow band and back reproduces their
 	/// exact order — a path-independent anchor the live `y` can't provide.
 	#[serde(default)]
@@ -95,7 +95,7 @@ impl PackedGrid {
 		self.cells.iter().position(|c| c.group.id == id)
 	}
 
-	/// Auto-pack `group` at the [`pack`]-chosen `(x, y)`, storing its resolved per-type min. A tile
+	/// Auto-pack `group` at the `pack`-chosen `(x, y)`, storing its resolved per-type min. A tile
 	/// wider than the view is clamped to fit (its wanted width kept in `desired_w`, so a later
 	/// widening restores it), since `pack` can't seat something it can't contain.
 	pub fn place(&mut self, group: Group, w: u32, h: u32, min: (u32, u32), cols: u32) {
@@ -136,7 +136,7 @@ impl PackedGrid {
 
 	/// Resize a tile by its bottom-right grip (top-left pinned). Width is bound to the view
 	/// (`cols`); height grows freely (whitespace below is allowed). The grid then settles under
-	/// [`gravity`]: the resized tile holds its place while every other tile rises onto the
+	/// `gravity`: the resized tile holds its place while every other tile rises onto the
 	/// skyline above it, so growing pushes the stack below down and shrinking lets it rise.
 	pub fn resize(&mut self, idx: usize, new_w: u32, new_h: u32, cols: u32) {
 		let (x, min_w, min_h) = {
@@ -159,7 +159,7 @@ impl PackedGrid {
 		debug_assert!(self.overlaps().is_none(), "resize left an overlap");
 	}
 
-	/// Reflow every tile into a new column count, then settle under [`gravity`]. Each tile aims for
+	/// Reflow every tile into a new column count, then settle under `gravity`. Each tile aims for
 	/// its *wanted* width/left-edge (`desired_*` if a narrower view earlier clamped it, else its
 	/// current `w`/`x`), clamps that to fit `cols`, and re-stores any leftover want in `desired_*`.
 	/// So the clamp is non-destructive: widening back to a span that fits restores `w`/`x` exactly
@@ -200,7 +200,7 @@ impl PackedGrid {
 	}
 
 	/// Close the active tab of a group; if that empties it, drop the tile and let the rest
-	/// settle upward under [`gravity`] — a freed column's tiles float up as far as they can,
+	/// settle upward under `gravity` — a freed column's tiles float up as far as they can,
 	/// matching insilico's pillar-removal.
 	pub fn close_active(&mut self, id: GroupId) {
 		let idx = self.locate(id).expect("close_active: group exists");
@@ -228,7 +228,7 @@ impl PackedGrid {
 	}
 
 	/// First tile (by index) that floats: at `y > 0` yet resting on nothing — no other tile
-	/// shares one of its columns with a bottom edge touching its top. [`gravity`] forbids this;
+	/// shares one of its columns with a bottom edge touching its top. `gravity` forbids this;
 	/// a settled tile is at `y == 0` or sits on the skyline directly beneath it. A free-floating
 	/// tile with a gap above it (nothing overlaps, but it should have risen) is caught here.
 	pub fn unsupported(&self) -> Option<usize> {
@@ -265,7 +265,7 @@ impl PackedGrid {
 	/// - hovered tile's body ⇒ [`Displace`](DropTarget::Displace) at the row *below* that tile,
 	///   so the stack under it shoves down while the hovered tile itself stays put — to displace
 	///   a tile you point above it, never at it, so you can still aim its header to join;
-	/// - clear of every tile ⇒ the pointer's own column/row: still [`Displace`] if tiles sit
+	/// - clear of every tile ⇒ the pointer's own column/row: still [`Displace`](DropTarget::Displace) if tiles sit
 	///   at/below that row in this span (so it works above and outside the tiles, past the
 	///   container's edge), else [`Pack`](DropTarget::Pack) onto the skyline (empty below).
 	/// `px`/`py` is the *center* of the block being dragged — it anchors the shadow's landing
@@ -317,13 +317,13 @@ impl PackedGrid {
 	/// Dropping onto the source's own group is a no-op, *except* tearing one tab back into its own
 	/// multi-tab group — that reorders it to `index` (remove-then-reinsert).
 	pub fn drop(&mut self, source: DragSource, target: DropTarget, cols: u32) {
-		if let DropTarget::Tab { group, .. } = target {
-			if group == source.group() {
-				let reorder = matches!(&source, DragSource::Tab { from, .. }
-					if self.cells[self.locate(*from).expect("drop: source group exists")].group.tabs.len() > 1);
-				if !reorder {
-					return;
-				}
+		if let DropTarget::Tab { group, .. } = target
+			&& group == source.group()
+		{
+			let reorder = matches!(&source, DragSource::Tab { from, .. }
+				if self.cells[self.locate(*from).expect("drop: source group exists")].group.tabs.len() > 1);
+			if !reorder {
+				return;
 			}
 		}
 		let (group, w, h, min_w, min_h) = match source {
@@ -350,10 +350,8 @@ impl PackedGrid {
 		match target {
 			DropTarget::Tab { group: t, index } => {
 				let dst = self.locate(t).expect("drop: tab target exists");
-				let mut at = index.min(self.cells[dst].group.tabs.len());
-				for p in group.tabs {
+				for (at, p) in (index.min(self.cells[dst].group.tabs.len())..).zip(group.tabs) {
 					self.cells[dst].group.insert_tab(p, at);
-					at += 1;
 				}
 				gravity(&mut self.cells, None);
 			}

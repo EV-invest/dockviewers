@@ -1,6 +1,6 @@
 //! A tab-group: one grid leaf holding several panels with one active. Port of
 //! `dockview-core/src/dockview/dockviewGroupPanel*` reduced to its data — the tab
-//! list, the active index, and tab ops. The header/DOM live in [`crate::render`].
+//! list, the active index, and tab ops. The header/DOM live in the UI bindings.
 
 use crate::model::{GroupId, PanelId};
 

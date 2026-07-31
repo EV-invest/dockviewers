@@ -1,6 +1,6 @@
 //! `dockviewers_leptos` — the Leptos binding for the [`dockviewers_core`] packed-grid tiling
 //! layout. Same shape as the Dioxus binding, Leptos idioms: one `RwSignal<PackedState>` (thread-
-//! local storage, since [`PackedState`](dockviewers_core::PackedState) holds `Rc`s and so is
+//! local storage, since [`PackedState`] holds `Rc`s and so is
 //! `!Send`), `view!` templates rendered from the core view-model getters, and `on:*` events
 //! forwarding one DOM primitive each to the identical reducer methods.
 //!

@@ -100,7 +100,7 @@ impl PackedState {
 		self.grid.resize(idx, new_w, new_h, self.cols);
 	}
 
-	/// Serialize the current layout (see [`serial`](crate::model::serial)).
+	/// Serialize the current layout (see [`serial`]).
 	pub fn save(&self) -> String {
 		serial::save(&self.grid)
 	}
@@ -198,7 +198,7 @@ impl PackedState {
 
 	// ------- gestures -------
 
-	/// Pick up a whole tile by its header (empty area): arm a [`Drag`] and focus it. `start`/`grab`
+	/// Pick up a whole tile by its header (empty area): arm a `Drag` and focus it. `start`/`grab`
 	/// are client px + the pointer's offset within the header.
 	pub fn press_tile(&mut self, gid: GroupId, start: (f64, f64), grab: (f64, f64)) {
 		self.focused = Some(gid);
@@ -215,7 +215,7 @@ impl PackedState {
 		});
 	}
 
-	/// Tear a tab out of its group: arm a [`Drag`] and focus the origin.
+	/// Tear a tab out of its group: arm a `Drag` and focus the origin.
 	pub fn press_tab(&mut self, panel: PanelId, from: GroupId, start: (f64, f64), grab: (f64, f64)) {
 		self.focused = Some(from);
 		let (w, h) = self.grid.cells.iter().find(|c| c.group.id == from).map(|c| (c.w, c.h)).expect("press_tab: group exists");
@@ -231,8 +231,8 @@ impl PackedState {
 		});
 	}
 
-	/// Advance an in-flight drag: arm past the [`DRAG_THRESHOLD`], then resolve the live
-	/// [`DropTarget`], refining a `Tab` slot from the preview's tab geometry (via [`tab_drop_index`],
+	/// Advance an in-flight drag: arm past the `DRAG_THRESHOLD`, then resolve the live
+	/// [`DropTarget`], refining a `Tab` slot from the preview's tab geometry (via `tab_drop_index`,
 	/// a no-op without a DOM). `scroll_y` bridges client space to the root's scrolled content space.
 	pub fn drag_move(&mut self, cursor: (f64, f64), scroll_y: f64) {
 		let Some(mut d) = self.drag.clone() else { return };
@@ -298,12 +298,11 @@ impl PackedState {
 			if let Some(t) = d.target {
 				self.grid.drop(d.source, t, self.cols);
 			}
-		} else if let DragSource::Tab { panel, from } = &d.source {
-			if let Some(c) = self.grid.cells.iter_mut().find(|c| c.group.id == *from) {
-				if let Some(i) = c.group.tabs.iter().position(|p| p == panel) {
-					c.group.active = i;
-				}
-			}
+		} else if let DragSource::Tab { panel, from } = &d.source
+			&& let Some(c) = self.grid.cells.iter_mut().find(|c| c.group.id == *from)
+			&& let Some(i) = c.group.tabs.iter().position(|p| p == panel)
+		{
+			c.group.active = i;
 		}
 	}
 
@@ -504,10 +503,10 @@ impl PackedState {
 		for (idx, cell) in g.cells.iter().enumerate() {
 			let gid = cell.group.id;
 			// Maximize is a view-only override: the focused tile fills the container, others omitted.
-			if let Some(mg) = maximized {
-				if mg != gid {
-					continue;
-				}
+			if let Some(mg) = maximized
+				&& mg != gid
+			{
+				continue;
 			}
 			let style = if maximized == Some(gid) {
 				"left:0; top:0; width:100%; height:100%;".to_string()
@@ -738,7 +737,7 @@ fn slot_style(maximized: Option<GroupId>, group: GroupId, x: u32, y: u32, w: u32
 }
 
 /// An in-flight reposition: what was picked up, where the press began (client px, to measure the
-/// [`DRAG_THRESHOLD`]), the live pointer (to drag the ghost naturally), and — once `armed` — the
+/// `DRAG_THRESHOLD`), the live pointer (to drag the ghost naturally), and — once `armed` — the
 /// live [`DropTarget`]. `src_w`/`src_h` size both the ghost and a `Pack` target's column clamp;
 /// `grab` is the pointer's offset within the picked-up element, so the ghost rides under the same
 /// point you grabbed.

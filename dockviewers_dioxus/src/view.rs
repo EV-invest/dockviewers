@@ -273,7 +273,7 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_ready: Option<Callback<Pack
 			}
 
 			for (style, label) in inspect.iter() {
-				div { class: "dv-inspect", style: "{style}", span { "{label}" } }
+				div { class: "dv-inspect", style: style.clone(), span { {label.clone()} } }
 			}
 
 			// Drag capture: a fixed surface (the Dioxus-web stand-in for `setPointerCapture`) that owns
@@ -305,8 +305,8 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_ready: Option<Callback<Pack
 						div { class: "dv-help-title", "Keybinds" }
 						for (label, chord) in help_rows.iter() {
 							div { class: "dv-help-row",
-								span { class: "dv-help-label", "{label}" }
-								span { class: "dv-help-key", "{chord}" }
+								span { class: "dv-help-label", {*label} }
+								span { class: "dv-help-key", {chord.clone()} }
 							}
 						}
 						div { class: "dv-help-foot", "click anywhere or press ? to close" }

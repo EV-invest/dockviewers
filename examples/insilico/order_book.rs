@@ -86,25 +86,7 @@ pub fn OrderBook(market: Signal<Market>) -> Element {
 			// Asks: rendered far-from-mid at top, best ask at the bottom of the block (descending toward mid).
 			div { style: "flex:1 1 0; display:flex; flex-direction:column; justify-content:flex-end; overflow:hidden;",
 				for r in asks.iter().rev() {
-					{
-						let bw = (r.total / max_total * 100.0).min(100.0);
-						let touch = r.px <= best_ask + 1e-9;
-						let bg = if touch { "rgba(255,93,108,.20)" } else { "rgba(255,93,108,.14)" };
-						let px = format!("{:.2}", r.px);
-						let size = format!("{:.2}", r.size);
-						let total = format!("{:.1}", r.total);
-						let wfac = (r.size / max_size * 100.0).min(100.0);
-						let wcol = if touch { "color:#ff8a96; font-weight:600;" } else { "color:#ff8a96;" };
-						rsx! {
-							div { class: "ob-row", style: "position:relative; display:flex; padding:1.5px 8px; line-height:1.35;",
-								div { style: "position:absolute; right:0; top:0; bottom:0; width:{bw}%; background:{bg};" }
-								div { style: "position:absolute; left:0; bottom:0; height:2px; width:{wfac}%; background:rgba(255,93,108,.5);" }
-								span { style: "flex:1; position:relative; {wcol}", "{px}" }
-								span { style: "flex:1; position:relative; text-align:right; color:#9fb0ac;", "{size}" }
-								span { style: "flex:1; position:relative; text-align:right; color:#6f827d;", "{total}" }
-							}
-						}
-					}
+					{level_row(r, true, r.px <= best_ask + 1e-9, max_total, max_size)}
 				}
 			}
 
@@ -120,25 +102,7 @@ pub fn OrderBook(market: Signal<Market>) -> Element {
 			// Bids: best bid at top (descending away from mid).
 			div { style: "flex:1 1 0; display:flex; flex-direction:column; justify-content:flex-start; overflow:hidden;",
 				for r in bids.iter() {
-					{
-						let bw = (r.total / max_total * 100.0).min(100.0);
-						let touch = r.px >= best_bid - 1e-9;
-						let bg = if touch { "rgba(61,220,132,.20)" } else { "rgba(61,220,132,.14)" };
-						let px = format!("{:.2}", r.px);
-						let size = format!("{:.2}", r.size);
-						let total = format!("{:.1}", r.total);
-						let wfac = (r.size / max_size * 100.0).min(100.0);
-						let wcol = if touch { "color:#5fe39a; font-weight:600;" } else { "color:#5fe39a;" };
-						rsx! {
-							div { class: "ob-row", style: "position:relative; display:flex; padding:1.5px 8px; line-height:1.35;",
-								div { style: "position:absolute; right:0; top:0; bottom:0; width:{bw}%; background:{bg};" }
-								div { style: "position:absolute; left:0; top:0; height:2px; width:{wfac}%; background:rgba(61,220,132,.5);" }
-								span { style: "flex:1; position:relative; {wcol}", "{px}" }
-								span { style: "flex:1; position:relative; text-align:right; color:#9fb0ac;", "{size}" }
-								span { style: "flex:1; position:relative; text-align:right; color:#6f827d;", "{total}" }
-							}
-						}
-					}
+					{level_row(r, false, r.px >= best_bid - 1e-9, max_total, max_size)}
 				}
 			}
 
@@ -159,6 +123,29 @@ pub fn OrderBook(market: Signal<Market>) -> Element {
 					}
 				}
 			}
+		}
+	}
+}
+
+/// One depth row. `ask` picks the side's palette and the aggression bar's edge (asks stack upward
+/// from the mid, bids downward), `touch` marks the level at the touch.
+fn level_row(r: &Row, ask: bool, touch: bool, max_total: f64, max_size: f64) -> Element {
+	let bw = (r.total / max_total * 100.0).min(100.0);
+	let wfac = (r.size / max_size * 100.0).min(100.0);
+	let (rgb, text) = if ask { ("255,93,108", "#ff8a96") } else { ("61,220,132", "#5fe39a") };
+	let bg = format!("rgba({rgb},{})", if touch { ".20" } else { ".14" });
+	let edge = if ask { "bottom:0;" } else { "top:0;" };
+	let wcol = format!("color:{text};{}", if touch { " font-weight:600;" } else { "" });
+	let px = format!("{:.2}", r.px);
+	let size = format!("{:.2}", r.size);
+	let total = format!("{:.1}", r.total);
+	rsx! {
+		div { class: "ob-row", style: "position:relative; display:flex; padding:1.5px 8px; line-height:1.35;",
+			div { style: "position:absolute; right:0; top:0; bottom:0; width:{bw}%; background:{bg};" }
+			div { style: "position:absolute; left:0; {edge} height:2px; width:{wfac}%; background:rgba({rgb},.5);" }
+			span { style: "flex:1; position:relative; {wcol}", "{px}" }
+			span { style: "flex:1; position:relative; text-align:right; color:#9fb0ac;", "{size}" }
+			span { style: "flex:1; position:relative; text-align:right; color:#6f827d;", "{total}" }
 		}
 	}
 }
