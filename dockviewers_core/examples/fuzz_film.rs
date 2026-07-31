@@ -103,7 +103,7 @@ struct Args {
 	seeds: u64,
 	/// Wall-clock per input event. One event is one pointer move, not one whole edit, so this is
 	/// lower than it would be for edit-granular keyframes. Raise it to read the interactions.
-	#[arg(long, env = "FILM_STEP_S", default_value_t = 0.16)]
+	#[arg(long, env = "FILM_STEP_S", default_value_t = 0.1)]
 	step_s: f64,
 	/// Hard ceiling on the film. Events past it are simply not rendered — the actions are random, so
 	/// a prefix is as representative as the whole. The oracle still runs the full trace.
