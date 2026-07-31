@@ -344,6 +344,24 @@ impl PackedState {
 		self.focused = Some(gid);
 	}
 
+	/// `focused`/`maximized` filtered to a group the layout still holds. They're set by a press and
+	/// never unset by one, but a group can vanish without any event to hear it on — a drag can tear
+	/// the focused pane's last tab into a fresh group, or re-home it into another. Resolving liveness
+	/// at every read is why nothing downstream has to remember to clear them.
+	fn live(&self, gid: Option<GroupId>) -> Option<GroupId> {
+		gid.filter(|g| self.grid.cells.iter().any(|c| c.group.id == *g))
+	}
+
+	/// Walk the undo history by `dir` and settle whatever comes back into the live geometry. A
+	/// snapshot may have been taken in another responsive band, so it needs the same refit a
+	/// [`load`](Self::load)ed layout does — restoring one verbatim would spill it past `cols`.
+	fn restore(&mut self, dir: i32) {
+		if let Some(mut g) = self.undo.step(dir) {
+			g.refit(self.cols);
+			self.grid = g;
+		}
+	}
+
 	pub fn close_help(&mut self) {
 		self.help = false;
 	}
@@ -367,12 +385,16 @@ impl PackedState {
 	/// Handle a keydown, already stripped to primitives by the binding (the binding also drops keys
 	/// aimed at an editable field before calling). `cursor`/`scroll_y` position the `d` inspect
 	/// hit-test. Returns whether the binding should `preventDefault`.
-	#[cfg(target_arch = "wasm32")]
 	pub fn on_key(&mut self, key: &str, alt: bool, ctrl: bool, cursor: (f64, f64), scroll_y: f64) -> KeyOutcome {
 		// Logs the moment a chord is recognized (a configured bind matched), before the action runs —
 		// so a console with this line but no visible effect means the action was a no-op, not that the
-		// keypress went unseen (the likeliest "works in Chrome, dead in Firefox" failure).
-		let recognized = |action: &str| web_sys::console::debug_1(&format!("dockview keybind: {key:?} (alt={alt}, ctrl={ctrl}) → {action}").into());
+		// keypress went unseen (the likeliest "works in Chrome, dead in Firefox" failure). The console is
+		// the only web-specific thing in here; natively (the fuzzer drives this) it's a no-op.
+		let recognized = |action: &str| {
+			debug_assert!(!action.is_empty(), "every recognized chord names its action");
+			#[cfg(target_arch = "wasm32")]
+			web_sys::console::debug_1(&format!("dockview keybind: {key:?} (alt={alt}, ctrl={ctrl}) → {action}").into());
+		};
 		let prevent = |b: bool| KeyOutcome { prevent_default: b };
 		let kb = self.cfg.keybinds;
 		// Esc always dismisses the hint and any open inspect popups, regardless of the binds.
@@ -384,36 +406,25 @@ impl PackedState {
 		}
 		if kb.undo.matches(key, alt, ctrl) {
 			recognized("undo");
-			if let Some(g) = self.undo.step(-1) {
-				self.grid = g;
-			}
+			self.restore(-1);
 			return prevent(true);
 		}
 		if kb.redo.matches(key, alt, ctrl) {
 			recognized("redo");
-			if let Some(g) = self.undo.step(1) {
-				self.grid = g;
-			}
+			self.restore(1);
 			return prevent(true);
 		}
 		if kb.close.matches(key, alt, ctrl) {
 			recognized("close");
-			if let Some(g) = self.focused {
+			if let Some(g) = self.live(self.focused) {
 				self.close_active(g);
-				// Dropped the last tab → the group is gone; don't leave focus/maximize on a dead id.
-				if !self.grid.cells.iter().any(|c| c.group.id == g) {
-					self.focused = None;
-					if self.maximized == Some(g) {
-						self.maximized = None;
-					}
-				}
 				return prevent(true);
 			}
 			return prevent(false);
 		}
 		if kb.maximize.matches(key, alt, ctrl) {
 			recognized("maximize");
-			if let Some(f) = self.focused {
+			if let Some(f) = self.live(self.focused) {
 				self.maximized = if self.maximized == Some(f) { None } else { Some(f) };
 				return prevent(true);
 			}
@@ -431,7 +442,7 @@ impl PackedState {
 			let (cx, cy) = cursor;
 			let (ox, oy) = self.root_origin;
 			let (sw, sh) = self.step_px;
-			let hit = self.maximized.or_else(|| {
+			let hit = self.live(self.maximized).or_else(|| {
 				self.grid
 					.cells
 					.iter()
@@ -488,16 +499,17 @@ impl PackedState {
 	pub fn frames(&self, titles: &HashMap<PanelId, String>) -> Vec<Frame> {
 		let g = self.preview();
 		let (sw, sh) = self.step_px;
+		let maximized = self.live(self.maximized);
 		let mut out = Vec::new();
 		for (idx, cell) in g.cells.iter().enumerate() {
 			let gid = cell.group.id;
 			// Maximize is a view-only override: the focused tile fills the container, others omitted.
-			if let Some(mg) = self.maximized {
+			if let Some(mg) = maximized {
 				if mg != gid {
 					continue;
 				}
 			}
-			let style = if self.maximized == Some(gid) {
+			let style = if maximized == Some(gid) {
 				"left:0; top:0; width:100%; height:100%;".to_string()
 			} else {
 				format!(
@@ -571,6 +583,7 @@ impl PackedState {
 		let g = self.preview();
 		let (sw, sh) = self.step_px;
 		let hidden = self.ghost_hidden(&g);
+		let maximized = self.live(self.maximized);
 		let mut map = HashMap::new();
 		for cell in &g.cells {
 			let active = cell.group.active_panel().clone();
@@ -578,7 +591,7 @@ impl PackedState {
 				let style = if hidden.contains(id) {
 					"display:none;".to_string()
 				} else {
-					slot_style(self.maximized, cell.group.id, cell.x, cell.y, cell.w, cell.h, id == &active, sw, sh)
+					slot_style(maximized, cell.group.id, cell.x, cell.y, cell.w, cell.h, id == &active, sw, sh)
 				};
 				map.insert(id.clone(), ContentSlot { style, group: cell.group.id });
 			}
@@ -772,8 +785,6 @@ impl UndoHistory {
 		self.cursor = self.states.len() - 1;
 	}
 
-	// Only the (web-only) keydown handler walks the history; `push` runs on every target.
-	#[cfg(target_arch = "wasm32")]
 	fn step(&mut self, dir: i32) -> Option<PackedGrid> {
 		let next = self.cursor.checked_add_signed(dir as isize)?;
 		let g = self.states.get(next)?.clone();

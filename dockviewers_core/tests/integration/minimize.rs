@@ -8,7 +8,7 @@
 use crate::sim;
 
 pub fn fails(seed: u64, size: usize) -> bool {
-	std::panic::catch_unwind(|| sim::run(seed, size, false)).map(|r| r.is_err()).unwrap_or(true)
+	std::panic::catch_unwind(|| sim::run(seed, size, false, &mut |_, _| {})).map(|r| r.is_err()).unwrap_or(true)
 }
 
 /// Reduce a failing `(seed, size0)` to a small reproducible `(seed, size)`.

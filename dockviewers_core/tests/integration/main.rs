@@ -62,7 +62,16 @@ fn fuzz() {
 #[test]
 fn regressions() {
 	install_quiet_hook();
-	for (seed, size) in corpus::load() {
+	let all = corpus::load();
+	let live: Vec<_> = all.iter().filter(|(.., v)| *v == corpus::VERSION).collect();
+	// Loud, because a corpus that has silently emptied itself still reports green.
+	eprintln!(
+		"corpus: replaying {} of {} cases at generator {:08x}; the rest were recorded under an older generator and are history, not tests",
+		live.len(),
+		all.len(),
+		corpus::VERSION
+	);
+	for &&(seed, size, _) in &live {
 		assert!(!minimize::fails(seed, size), "recorded regression (seed={seed}, size={size}) fails again");
 	}
 }
@@ -71,7 +80,7 @@ fn regressions() {
 /// panic). Returns the failure reason, or `None` if it didn't reproduce.
 fn replay(seed: u64, size: usize) -> Option<String> {
 	eprintln!("--- replay (seed={seed}, size={size}) ---");
-	match std::panic::catch_unwind(|| sim::run(seed, size, true)) {
+	match std::panic::catch_unwind(|| sim::run(seed, size, true, &mut |_, _| {})) {
 		Ok(Ok(())) => {
 			eprintln!("(no failure on replay)");
 			None

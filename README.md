@@ -1,29 +1,21 @@
-# dockviewers_dioxus
+# dockviewers
 ![Minimum Supported Rust Version](https://img.shields.io/badge/nightly-1.92+-ab6000.svg)
-[<img alt="crates.io" src="https://img.shields.io/crates/v/dockviewers_dioxus.svg?color=fc8d62&logo=rust" height="20" style=flat-square>](https://crates.io/crates/dockviewers_dioxus)
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs&style=flat-square" height="20">](https://docs.rs/dockviewers_dioxus)
-![Lines Of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/dockviewers_dioxus-loc.json)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/dockviewers.svg?color=fc8d62&logo=rust" height="20" style=flat-square>](https://crates.io/crates/dockviewers)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs&style=flat-square" height="20">](https://docs.rs/dockviewers)
+![Lines Of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/dockviewers-loc.json)
 <br>
-[<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers_dioxus/errors.yml?branch=main&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/dockviewers_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
-[<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers_dioxus/warnings.yml?branch=main&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/dockviewers_dioxus/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
+[<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers/errors.yml?branch=main&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/dockviewers/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
+[<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/dockviewers/warnings.yml?branch=main&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/dockviewers/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
 
 🌐 **[Live demo](https://ev-invest.github.io/dockviewers/)** — no setup, runs in the browser.
 
 A tiling/docking layout for [Dioxus](https://dioxuslabs.com/) — the IDE/trading-terminal kind: panes split, resize, tab together, float, and maximize, with the arrangement saved to JSON and restored on reload. It's a Dioxus-idiomatic port of [`dockview-core`](https://github.com/mathuo/dockview): one pure `DockModel` in a `Signal` is the only source of truth, and the UI is declarative `rsx!` derived from it. User content lives in a stable, id-keyed overlay layer separate from the split-tree skeleton, so a panel keeps its component instance and inner state (a live chart, scroll, an unsaved textarea) while it's dragged across the grid.
-<!-- markdownlint-disable -->
-<details>
-<summary>
-<h2>Installation</h2>
-</summary>
 
-TODO
+![fuzz trace](docs/.readme_assets/fuzz.svg)
 
-</details>
-<!-- markdownlint-restore -->
+Not a hand-authored demo: that's an actual trace from the model fuzzer (`dockviewers_core/tests/integration/`), replayed frame-for-frame — every move you see is one the oracle then checked. Regenerate with `cargo r --example fuzz_film -p dockviewers_core`, which also prints which interactions the fuzzer is and isn't reaching.
 
 ## Usage
-## Usage
-
 Hand `DockArea` a list of `DockPanel`s (id + title + the `Element` to render); the library owns layout, you own content.
 
 ```rust

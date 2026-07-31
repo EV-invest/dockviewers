@@ -48,6 +48,13 @@ impl Frng {
 		self.byte() as u32 % n
 	}
 
+	/// Uniform draw across `lo..=hi` at byte resolution. [`below`](Self::below) spends exactly one
+	/// byte, so it silently collapses for `n > 256` — a container width spans ~1600px and would
+	/// otherwise never leave the narrowest band.
+	pub fn span(&mut self, lo: f64, hi: f64) -> f64 {
+		lo + (hi - lo) * self.byte() as f64 / 255.0
+	}
+
 	/// Weighted index into `weights` (sum must be > 0) — the swarm-testing knob.
 	pub fn weighted(&mut self, weights: &[u32]) -> usize {
 		let total: u32 = weights.iter().sum();

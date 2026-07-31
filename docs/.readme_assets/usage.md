@@ -1,5 +1,3 @@
-# Usage
-
 Hand `DockArea` a list of `DockPanel`s (id + title + the `Element` to render); the library owns layout, you own content.
 
 ```rust

@@ -99,7 +99,12 @@ impl PackedGrid {
 	/// wider than the view is clamped to fit (its wanted width kept in `desired_w`, so a later
 	/// widening restores it), since `pack` can't seat something it can't contain.
 	pub fn place(&mut self, group: Group, w: u32, h: u32, min: (u32, u32), cols: u32) {
-		let eff_w = w.min(cols);
+		// The starting size is a *want*, the min a floor: a [`MinSize::Rem`] resolves against the live
+		// step, so it can land above the size the host asked for. Same rule as `resize`/`refit` — the
+		// floor wins, and the view caps it.
+		let want_w = w.max(min.0);
+		let eff_w = want_w.min(cols);
+		let h = h.max(min.1);
 		let (x, y) = pack(&self.cells, eff_w, h, cols);
 		self.cells.push(Cell {
 			group,
@@ -109,7 +114,7 @@ impl PackedGrid {
 			h,
 			min_w: min.0,
 			min_h: min.1,
-			desired_w: (eff_w != w).then_some(w),
+			desired_w: (eff_w != want_w).then_some(want_w),
 			desired_x: None,
 			rank: 0,
 		});

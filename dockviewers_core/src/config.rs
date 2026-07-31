@@ -18,7 +18,6 @@ pub struct Keybind {
 }
 
 impl Keybind {
-	#[cfg(target_arch = "wasm32")]
 	pub(crate) fn matches(&self, key: &str, alt: bool, ctrl: bool) -> bool {
 		self.key == key && self.alt == alt && self.ctrl == ctrl
 	}
