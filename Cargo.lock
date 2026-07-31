@@ -1234,7 +1234,7 @@ dependencies = [
 
 [[package]]
 name = "dockviewers_dioxus"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "dioxus",
  "dockviewers_core",
