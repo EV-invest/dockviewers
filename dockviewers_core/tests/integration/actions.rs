@@ -38,6 +38,8 @@ const RESIZE: usize = 5;
 const KEY: usize = 6;
 const SAVE_LOAD: usize = 7;
 
+/// Every chord, so the generator can't silently drop one as the set grows.
+pub const KEY_KINDS: [KeyKind; 7] = [KeyKind::Close, KeyKind::Maximize, KeyKind::Undo, KeyKind::Redo, KeyKind::Help, KeyKind::Escape, KeyKind::Inspect];
 #[derive(Clone, Debug)]
 pub enum Action {
 	/// A container resize, through `set_measure` → `Breakpoint` → `scale_cols` → `refit`.
@@ -92,8 +94,6 @@ pub enum KeyKind {
 	Escape,
 	Inspect,
 }
-/// Every chord, so the generator can't silently drop one as the set grows.
-pub const KEY_KINDS: [KeyKind; 7] = [KeyKind::Close, KeyKind::Maximize, KeyKind::Undo, KeyKind::Redo, KeyKind::Help, KeyKind::Escape, KeyKind::Inspect];
 
 /// Apply `action`, returning the invariant it violated. Several invariants are only expressible
 /// *around* an action (a cancel is a no-op, an unarmed release only activates), so they live here
@@ -134,6 +134,117 @@ pub fn apply(action: &Action, world: &mut World, mid: &mut dyn FnMut(&World)) ->
 	Ok(())
 }
 
+/// Pick a valid action for the current `world`, weighting kinds by the per-run `weights` (swarm).
+pub fn generate(frng: &mut Frng, world: &World, weights: &[u32; N_KINDS]) -> Option<Action> {
+	let cells = &world.state.grid().cells;
+
+	let mut avail = vec![MEASURE, PLACE, KEY];
+	if !cells.is_empty() {
+		avail.push(ADD_TAB);
+		avail.push(FOCUS);
+		avail.push(DRAG);
+		// `resize_start` indexes the cell list, so an empty grid has no grip to take.
+		avail.push(RESIZE);
+		// A mid-resize grid is deliberately unsettled and `load` refits, so the two can't agree yet.
+		if !world.state.resizing() {
+			avail.push(SAVE_LOAD);
+		}
+	}
+
+	let ws: Vec<u32> = avail.iter().map(|&k| weights[k].max(1)).collect();
+	let kind = avail[frng.weighted(&ws)];
+	let (sw, sh) = world.step_px();
+	let (ox, oy) = world.origin;
+
+	Some(match kind {
+		MEASURE => {
+			// Half the draws land on a band boundary, half anywhere — so `Breakpoint::of`'s edges are hit
+			// exactly instead of being left to a 1-in-1600 chance.
+			let w = if frng.below(2) == 0 {
+				EDGES[frng.below(EDGES.len() as u32) as usize]
+			} else {
+				frng.span(MIN_W, MAX_W)
+			};
+			Action::Measure { w, h: frng.span(MIN_H, MAX_H) }
+		}
+		PLACE => {
+			// Sized as a fraction of the grid, so a tile stays a pane rather than a sliver — both counts
+			// scale with the band, and a fixed 1..8 would be a sliver on the 36-row default.
+			let w = 1 + frng.below(world.state.cols() / 2);
+			let h = 1 + frng.below(world.cfg.rows / 2);
+			Action::Place {
+				w,
+				h,
+				// Both `MinSize` arms: `Rem` is the one that resolves against the live step size.
+				min: if frng.below(2) == 0 {
+					MinSize::Steps {
+						w: Step(1 + frng.below(w)),
+						h: Step(1 + frng.below(h)),
+					}
+				} else {
+					MinSize::Rem {
+						w: (1 + frng.below(20)) as f64,
+						h: (1 + frng.below(20)) as f64,
+					}
+				},
+			}
+		}
+		ADD_TAB => Action::AddTab { group: pick_group(frng, world) },
+		FOCUS => Action::Focus { group: pick_group(frng, world) },
+		DRAG => {
+			let c = &cells[frng.below(cells.len() as u32) as usize];
+			let (left, top) = (ox + c.x as f64 * sw, oy + c.y as f64 * sh);
+			let width = c.w as f64 * sw;
+			// Half the time tear a tab (aim at its slot in the strip), else grab the header's empty area.
+			let grab = if frng.below(2) == 0 {
+				let i = frng.below(c.group.tabs.len() as u32);
+				let x = (i as f64 * 40.0 + 12.0).min((width - 2.0).max(0.0));
+				Grab::Tab {
+					panel: c.group.tabs[i as usize].clone(),
+					from: c.group.id,
+					start: (left + x, top + 8.0),
+					grab: (x, 8.0),
+				}
+			} else {
+				let x = width * 0.8;
+				Grab::Tile {
+					gid: c.group.id,
+					start: (left + x, top + 8.0),
+					grab: (x, 8.0),
+				}
+			};
+			let start = match &grab {
+				Grab::Tile { start, .. } | Grab::Tab { start, .. } => *start,
+			};
+			let to = aim(frng, world);
+			// One drag in four never leaves the threshold, so the click path (activate, don't move) runs.
+			let arm = frng.below(4) != 0;
+			Action::Drag {
+				path: path(frng, start, to, arm),
+				grab,
+				commit: frng.below(4) != 0,
+			}
+		}
+		RESIZE => {
+			let idx = frng.below(cells.len() as u32) as usize;
+			let c = &cells[idx];
+			// The grip is the tile's bottom-right corner, where `.dv-resize-handle` sits.
+			let start = (ox + (c.x + c.w) as f64 * sw, oy + (c.y + c.h) as f64 * sh);
+			let to = aim(frng, world);
+			Action::Resize {
+				idx,
+				start,
+				path: path(frng, start, to, true),
+				// A gesture left in flight is legal; when one already is, always close it out so a run can't
+				// spend its whole tail unsettled.
+				commit: world.state.resizing() || frng.below(4) != 0,
+			}
+		}
+		KEY => Action::Key(KEY_KINDS[frng.below(KEY_KINDS.len() as u32) as usize]),
+		SAVE_LOAD => Action::SaveLoad,
+		_ => unreachable!("kind is one of the constants pushed into `avail`"),
+	})
+}
 /// One whole pointer gesture, plus the three invariants that only exist around it: a press never
 /// touches the model, a cancel is a no-op, and an unarmed release is pure tab activation.
 fn drag(grab: &Grab, path: &[(f64, f64)], commit: bool, world: &mut World, mid: &mut dyn FnMut(&World)) -> Result<(), String> {
@@ -272,118 +383,6 @@ fn save_load(world: &mut World) -> Result<(), String> {
 		return Err(format!("save/load changed the layout: {:?} vs {:?}", fresh.grid().cells, world.state.grid().cells));
 	}
 	Ok(())
-}
-
-/// Pick a valid action for the current `world`, weighting kinds by the per-run `weights` (swarm).
-pub fn generate(frng: &mut Frng, world: &World, weights: &[u32; N_KINDS]) -> Option<Action> {
-	let cells = &world.state.grid().cells;
-
-	let mut avail = vec![MEASURE, PLACE, KEY];
-	if !cells.is_empty() {
-		avail.push(ADD_TAB);
-		avail.push(FOCUS);
-		avail.push(DRAG);
-		// `resize_start` indexes the cell list, so an empty grid has no grip to take.
-		avail.push(RESIZE);
-		// A mid-resize grid is deliberately unsettled and `load` refits, so the two can't agree yet.
-		if !world.state.resizing() {
-			avail.push(SAVE_LOAD);
-		}
-	}
-
-	let ws: Vec<u32> = avail.iter().map(|&k| weights[k].max(1)).collect();
-	let kind = avail[frng.weighted(&ws)];
-	let (sw, sh) = world.step_px();
-	let (ox, oy) = world.origin;
-
-	Some(match kind {
-		MEASURE => {
-			// Half the draws land on a band boundary, half anywhere — so `Breakpoint::of`'s edges are hit
-			// exactly instead of being left to a 1-in-1600 chance.
-			let w = if frng.below(2) == 0 {
-				EDGES[frng.below(EDGES.len() as u32) as usize]
-			} else {
-				frng.span(MIN_W, MAX_W)
-			};
-			Action::Measure { w, h: frng.span(MIN_H, MAX_H) }
-		}
-		PLACE => {
-			// Sized as a fraction of the grid, so a tile stays a pane rather than a sliver — both counts
-			// scale with the band, and a fixed 1..8 would be a sliver on the 36-row default.
-			let w = 1 + frng.below(world.state.cols() / 2);
-			let h = 1 + frng.below(world.cfg.rows / 2);
-			Action::Place {
-				w,
-				h,
-				// Both `MinSize` arms: `Rem` is the one that resolves against the live step size.
-				min: if frng.below(2) == 0 {
-					MinSize::Steps {
-						w: Step(1 + frng.below(w)),
-						h: Step(1 + frng.below(h)),
-					}
-				} else {
-					MinSize::Rem {
-						w: (1 + frng.below(20)) as f64,
-						h: (1 + frng.below(20)) as f64,
-					}
-				},
-			}
-		}
-		ADD_TAB => Action::AddTab { group: pick_group(frng, world) },
-		FOCUS => Action::Focus { group: pick_group(frng, world) },
-		DRAG => {
-			let c = &cells[frng.below(cells.len() as u32) as usize];
-			let (left, top) = (ox + c.x as f64 * sw, oy + c.y as f64 * sh);
-			let width = c.w as f64 * sw;
-			// Half the time tear a tab (aim at its slot in the strip), else grab the header's empty area.
-			let grab = if frng.below(2) == 0 {
-				let i = frng.below(c.group.tabs.len() as u32);
-				let x = (i as f64 * 40.0 + 12.0).min((width - 2.0).max(0.0));
-				Grab::Tab {
-					panel: c.group.tabs[i as usize].clone(),
-					from: c.group.id,
-					start: (left + x, top + 8.0),
-					grab: (x, 8.0),
-				}
-			} else {
-				let x = width * 0.8;
-				Grab::Tile {
-					gid: c.group.id,
-					start: (left + x, top + 8.0),
-					grab: (x, 8.0),
-				}
-			};
-			let start = match &grab {
-				Grab::Tile { start, .. } | Grab::Tab { start, .. } => *start,
-			};
-			let to = aim(frng, world);
-			// One drag in four never leaves the threshold, so the click path (activate, don't move) runs.
-			let arm = frng.below(4) != 0;
-			Action::Drag {
-				path: path(frng, start, to, arm),
-				grab,
-				commit: frng.below(4) != 0,
-			}
-		}
-		RESIZE => {
-			let idx = frng.below(cells.len() as u32) as usize;
-			let c = &cells[idx];
-			// The grip is the tile's bottom-right corner, where `.dv-resize-handle` sits.
-			let start = (ox + (c.x + c.w) as f64 * sw, oy + (c.y + c.h) as f64 * sh);
-			let to = aim(frng, world);
-			Action::Resize {
-				idx,
-				start,
-				path: path(frng, start, to, true),
-				// A gesture left in flight is legal; when one already is, always close it out so a run can't
-				// spend its whole tail unsettled.
-				commit: world.state.resizing() || frng.below(4) != 0,
-			}
-		}
-		KEY => Action::Key(KEY_KINDS[frng.below(KEY_KINDS.len() as u32) as usize]),
-		SAVE_LOAD => Action::SaveLoad,
-		_ => unreachable!("kind is one of the constants pushed into `avail`"),
-	})
 }
 
 /// A live client-px point worth aiming a gesture at. Uniform pixels would almost never hit a header

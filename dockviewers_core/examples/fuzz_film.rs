@@ -3,7 +3,7 @@
 //! frame is already known here — no browser, no rasterizer, no ffmpeg: the browser tweens between
 //! keyframes, so smooth motion costs nothing and the file embeds in markdown with a plain `![](…)`.
 //!
-//! `cargo r --example fuzz_film -p dockviewers_core`
+//! `cargo r --example fuzz_film -p dockviewers_core -- --help`
 //!
 //! Frames come from the same `frames()`/`ghost()` view-model a binding renders, and one keyframe is
 //! one *input event*, so a drag reads as a drag: the ghost tracks the pointer, the grey landing
@@ -14,8 +14,10 @@
 use std::{
 	collections::{BTreeMap, BTreeSet, HashMap},
 	fmt::Write as _,
+	path::{Path, PathBuf},
 };
 
+use clap::Parser;
 use dockviewers_core::model::packed::{DropTarget, MinSize};
 
 // An example can't `use` a test binary's modules, but these are plain files and `crate::` resolves
@@ -29,18 +31,8 @@ mod oracle;
 #[path = "../tests/integration/sim.rs"]
 mod sim;
 
-/// Wall-clock per input event. One event is now one pointer move, not one whole edit, so this is
-/// lower than it would be for edit-granular keyframes.
-const STEP_S: f64 = 0.16;
-/// Hard ceiling on the film. Trace steps past it are simply not rendered — the actions are random,
-/// so a prefix is as representative as the whole. The oracle still runs the full trace.
-const MAX_S: f64 = 20.0;
 /// Freeze on the last frame before looping, so the end reads as an end.
 const HOLD_S: f64 = 1.0;
-
-const SEEDS: u64 = 256;
-const SIZE: usize = 256;
-
 /// Canvas in SVG user units. The container is drawn at its true px size (never magnified) and
 /// centred, so a measure into a narrower band visibly shrinks the window rather than restretching it.
 const W: f64 = 960.0;
@@ -52,8 +44,6 @@ const CAP_H: f64 = 24.0;
 const HEADER_H: f64 = 32.0;
 const PIP_W: f64 = 26.0;
 const MAX_PIPS: usize = 6;
-
-// The `--dv-*` custom-property defaults from `css.rs`, so the film matches the real component.
 const C_ROOT: &str = "#141414";
 const C_TILE: &str = "#1e1e1e";
 const C_BORDER: &str = "#333";
@@ -66,7 +56,6 @@ const C_FG: &str = "#ddd";
 /// `--dv-shadow-bg` is `rgba(160,160,160,0.18)`; flattened over the tile bg so the landing cell is
 /// legible at film scale.
 const C_SHADOW: &str = "#3d3d3d";
-
 const BUCKETS: [&str; 29] = [
 	"Measure",
 	"Place",
@@ -98,15 +87,42 @@ const BUCKETS: [&str; 29] = [
 	"band lg",
 	"band xl",
 ];
+/// Every flag also reads a `FILM_*` variable, so the film is scriptable from an env without a
+/// second code path; clap's precedence puts the flag first.
+#[derive(Parser)]
+#[command(about = "Animate a fuzz trace into an SMIL SVG, and report which interactions it reaches")]
+struct Args {
+	/// Seed to film. Default: whichever scanned seed reaches the most distinct interactions.
+	#[arg(long, env = "FILM_SEED")]
+	seed: Option<u64>,
+	/// Entropy budget per run, in bytes — the same knob as the fuzzer's `FUZZ_SIZE`. Longer traces.
+	#[arg(long, env = "FILM_SIZE", default_value_t = 256)]
+	size: usize,
+	/// How many seeds to scan for the coverage table (and to pick the filmed one from).
+	#[arg(long, env = "FILM_SEEDS", default_value_t = 256)]
+	seeds: u64,
+	/// Wall-clock per input event. One event is one pointer move, not one whole edit, so this is
+	/// lower than it would be for edit-granular keyframes. Raise it to read the interactions.
+	#[arg(long, env = "FILM_STEP_S", default_value_t = 0.16)]
+	step_s: f64,
+	/// Hard ceiling on the film. Events past it are simply not rendered — the actions are random, so
+	/// a prefix is as representative as the whole. The oracle still runs the full trace.
+	#[arg(long, env = "FILM_MAX_S", default_value_t = 20.0)]
+	max_s: f64,
+	/// Where to write the SVG. Default: the committed README asset.
+	#[arg(long, env = "FILM_OUT")]
+	out: Option<PathBuf>,
+}
+
+// The `--dv-*` custom-property defaults from `css.rs`, so the film matches the real component.
 
 fn main() {
-	let step_s = env_var("FILM_STEP_S").unwrap_or(STEP_S);
-	let max_s = env_var("FILM_MAX_S").unwrap_or(MAX_S);
-	let size = env_var("FILM_SIZE").unwrap_or(SIZE);
+	let args = Args::parse();
+	let (step_s, size) = (args.step_s, args.size);
 
 	let mut counts = [0u64; BUCKETS.len()];
 	let mut best = (0u64, 0u32); // (seed, distinct buckets)
-	for seed in 0..SEEDS {
+	for seed in 0..args.seeds {
 		let mut mask = 0u32;
 		let mut observe = |action: Option<&actions::Action>, world: &sim::World| {
 			let Some(a) = action else { return };
@@ -124,12 +140,12 @@ fn main() {
 		}
 	}
 
-	eprintln!("coverage over seeds 0..{SEEDS} (size {size}), counted per input event:");
+	eprintln!("coverage over seeds 0..{} (size {size}), counted per input event:", args.seeds);
 	for (label, n) in BUCKETS.iter().zip(counts) {
 		eprintln!("  {label:<22} {n:>9}{}", if n == 0 { "   <-- NEVER REACHED" } else { "" });
 	}
 
-	let seed = env_var("FILM_SEED").unwrap_or(best.0);
+	let seed = args.seed.unwrap_or(best.0);
 	let mut trace = Vec::new();
 	let mut step = 0usize;
 	let mut observe = |action: Option<&actions::Action>, world: &sim::World| {
@@ -145,11 +161,11 @@ fn main() {
 	sim::run(seed, size, false, &mut observe).ok();
 
 	let full = trace.len();
-	trace.truncate(full.min((max_s / step_s).floor() as usize).max(2));
+	trace.truncate(full.min((args.max_s / step_s).floor() as usize).max(2));
 	let dur = (trace.len() - 1) as f64 * step_s + HOLD_S;
 
-	let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/.readme_assets/fuzz.svg");
-	std::fs::write(&out, render(&trace, step_s, dur)).expect("write fuzz.svg");
+	let out = args.out.unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/.readme_assets/fuzz.svg"));
+	std::fs::write(&out, render(&trace, step_s, dur)).expect("write the SVG");
 	eprintln!(
 		"\nfilmed seed {seed} ({} of {} buckets): {full} events, {} rendered, {dur:.1}s -> {}",
 		best.1,
@@ -525,8 +541,4 @@ impl<'a> Anim<'a> {
 
 fn escape(s: &str) -> String {
 	s.replace('&', "&amp;").replace('<', "&lt;")
-}
-
-fn env_var<T: std::str::FromStr>(key: &str) -> Option<T> {
-	std::env::var(key).ok().map(|s| s.parse().ok().expect("env override must parse"))
 }

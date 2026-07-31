@@ -14,6 +14,16 @@ A tiling/docking layout for [Dioxus](https://dioxuslabs.com/) — the IDE/tradin
 ![fuzz trace](docs/.readme_assets/fuzz.svg)
 
 Not a hand-authored demo: that's an actual trace from the model fuzzer (`dockviewers_core/tests/integration/`), replayed frame-for-frame — every move you see is one the oracle then checked. Regenerate with `cargo r --example fuzz_film -p dockviewers_core`, which also prints which interactions the fuzzer is and isn't reaching.
+<!-- markdownlint-disable -->
+<details>
+<summary>
+<h2>Installation</h2>
+</summary>
+
+TODO
+
+</details>
+<!-- markdownlint-restore -->
 
 ## Usage
 Hand `DockArea` a list of `DockPanel`s (id + title + the `Element` to render); the library owns layout, you own content.

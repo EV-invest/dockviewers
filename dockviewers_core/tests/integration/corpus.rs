@@ -19,22 +19,6 @@ use std::{fs::OpenOptions, io::Write, path::PathBuf};
 /// the cost of a false invalidation is a few free runs, the cost of a false match is a lie.
 pub const VERSION: u32 = fingerprint();
 
-const fn fingerprint() -> u32 {
-	const SOURCES: [&str; 3] = [include_str!("actions.rs"), include_str!("sim.rs"), include_str!("frng.rs")];
-	let mut h: u32 = 0x811c_9dc5;
-	let mut i = 0;
-	while i < SOURCES.len() {
-		let bytes = SOURCES[i].as_bytes();
-		let mut j = 0;
-		while j < bytes.len() {
-			h = (h ^ bytes[j] as u32).wrapping_mul(0x0100_0193);
-			j += 1;
-		}
-		i += 1;
-	}
-	h
-}
-
 /// Parse the corpus: one `seed size version` per line; `#` starts a comment; blank lines ignored.
 /// A missing version reads as 0 — those lines predate versioning and never match.
 pub fn load() -> Vec<(u64, usize, u32)> {
@@ -53,7 +37,6 @@ pub fn load() -> Vec<(u64, usize, u32)> {
 	}
 	out
 }
-
 /// Append a newly-found minimal repro unless it's already recorded at this generator version.
 /// `reason` is written as a trailing comment so a reviewer of the diff sees what broke.
 pub fn record(seed: u64, size: usize, reason: &str) {
@@ -64,6 +47,21 @@ pub fn record(seed: u64, size: usize, reason: &str) {
 	// One short append on the rare failure path; the file is only ever appended to.
 	let mut f = OpenOptions::new().create(true).append(true).open(path()).expect("open CORPUS.txt for append");
 	f.write_all(line.as_bytes()).expect("append to CORPUS.txt");
+}
+const fn fingerprint() -> u32 {
+	const SOURCES: [&str; 3] = [include_str!("actions.rs"), include_str!("sim.rs"), include_str!("frng.rs")];
+	let mut h: u32 = 0x811c_9dc5;
+	let mut i = 0;
+	while i < SOURCES.len() {
+		let bytes = SOURCES[i].as_bytes();
+		let mut j = 0;
+		while j < bytes.len() {
+			h = (h ^ bytes[j] as u32).wrapping_mul(0x0100_0193);
+			j += 1;
+		}
+		i += 1;
+	}
+	h
 }
 
 /// `CARGO_MANIFEST_DIR` is fixed at compile time to the crate dir, so the path resolves

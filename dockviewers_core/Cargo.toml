@@ -21,6 +21,11 @@ web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Eleme
 serde.workspace = true
 serde_json.workspace = true
 
+# Only `examples/fuzz_film.rs` needs an arg parser; `env` lets each flag fall back to a `FILM_*`
+# variable without a second code path.
+[dev-dependencies]
+clap = { workspace = true, features = ["env"] }
+
 [[test]]
 name = "integration"
 path = "tests/integration/main.rs"
