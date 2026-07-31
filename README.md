@@ -9,7 +9,22 @@
 
 🌐 **[Live demo](https://ev-invest.github.io/dockviewers/)** — no setup, runs in the browser.
 
-A tiling/docking layout for [Dioxus](https://dioxuslabs.com/) — the IDE/trading-terminal kind: panes split, resize, tab together, float, and maximize, with the arrangement saved to JSON and restored on reload. It's a Dioxus-idiomatic port of [`dockview-core`](https://github.com/mathuo/dockview): one pure `DockModel` in a `Signal` is the only source of truth, and the UI is declarative `rsx!` derived from it. User content lives in a stable, id-keyed overlay layer separate from the split-tree skeleton, so a panel keeps its component instance and inner state (a live chart, scroll, an unsaved textarea) while it's dragged across the grid.
+A tiling/docking layout for [Dioxus](https://dioxuslabs.com/) — the IDE/trading-terminal kind: panes split, resize, tab together, float, and maximize, with the arrangement saved to JSON and restored on reload.
+
+![fuzz trace, seed 172](docs/.readme_assets/fuzz.svg)
+
+A random fuzz run (seed 172), not a demo. For the real thing, [play with it](https://ev-invest.github.io/dockviewers/).
+// generate it yourself: `cargo r --example fuzz_film -p dockviewers_core -- --seed 172`.
+<!-- markdownlint-disable -->
+<details>
+<summary>
+<h2>Installation</h2>
+</summary>
+
+TODO
+
+</details>
+<!-- markdownlint-restore -->
 
 ## Usage
 Hand `DockArea` a list of `DockPanel`s (id + title + the `Element` to render); the library owns layout, you own content.
