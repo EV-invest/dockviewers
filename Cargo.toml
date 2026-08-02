@@ -25,9 +25,9 @@ color-eyre = "^0.6.5"
 derive-new = "^0"
 dioxus = { version = "^0.7" }
 dioxus-ssr = "0.7"
-dockviewers_core = { path = "dockviewers_core", version = "0.1.9" }
-dockviewers_dioxus = { path = "dockviewers_dioxus", version = "0.1.10" }
-dockviewers_leptos = { path = "dockviewers_leptos", version = "0.1.9" }
+dockviewers_core = { path = "dockviewers_core", version = "0.2.0" }
+dockviewers_dioxus = { path = "dockviewers_dioxus", version = "0.2.0" }
+dockviewers_leptos = { path = "dockviewers_leptos", version = "0.2.0" }
 gloo-timers = "0.3"
 leptos = { version = "^0.8" }
 miette = { version = "^7.6.0", features = ["fancy", "serde", "syntect-highlighter"] }

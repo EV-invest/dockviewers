@@ -1,15 +1,15 @@
 //! `dockviewers` — a packed-grid tiling/docking layout: fixed-size tiles that snap to a step grid,
 //! never overlap, and leave whitespace below (InsilicoTerminal's look). Panes split, resize, tab
-//! together, float, and maximize, with the arrangement saved to JSON and restored on reload.
+//! together, float, and maximize, with the arrangement cached per screen band in `localStorage`.
 //!
 //! This crate is a thin **facade** over the ecosystem — pick a UI binding with a feature flag:
 //!
 //! ```toml
-//! dockviewers = { version = "0.1", features = ["dioxus"] }   # or ["leptos"]
+//! dockviewers = { version = "0.2", features = ["dioxus"] }   # or ["leptos"]
 //! ```
 //!
 //! - Always available: [`core`] re-exports [`dockviewers_core`] — the framework-agnostic engine
-//!   (grid model, gesture reducer, persistence, CSS). A bare `dockviewers` (no features) is just this.
+//!   (grid model, gesture reducer, seed cache, CSS). A bare `dockviewers` (no features) is just this.
 //! - `dioxus` feature → [`dioxus`] re-exports [`dockviewers_dioxus`] (the Dioxus binding).
 //! - `leptos` feature → [`leptos`] re-exports [`dockviewers_leptos`] (the Leptos binding).
 //!
