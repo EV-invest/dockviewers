@@ -7,9 +7,9 @@ import { expect, test } from '@playwright/test'
 
 const KEY = 'insilico-layout'
 
-/** Fresh profile every test: wipe the cache, then boot and wait for the dock. */
+/** Boot and wait for the dock. Playwright gives each test its own context, so the cache starts empty
+ * — and stays that way across a `reload`, which an init-script wipe would not. */
 const boot = async (page) => {
-	await page.addInitScript(() => localStorage.clear())
 	await page.goto('/')
 	await page.waitForSelector('.dv-header', { timeout: 30_000 })
 }
