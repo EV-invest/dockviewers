@@ -14,7 +14,10 @@
           "v_flakes",
           "devenv"
         ],
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": [
+          "v_flakes",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1742042642,
@@ -225,7 +228,10 @@
         ],
         "flake-parts": "flake-parts",
         "libgit2": "libgit2",
-        "nixpkgs": "nixpkgs_2",
+        "nixpkgs": [
+          "v_flakes",
+          "nixpkgs"
+        ],
         "nixpkgs-23-11": [
           "v_flakes",
           "devenv"
@@ -255,38 +261,6 @@
       }
     },
     "nixpkgs": {
-      "locked": {
-        "lastModified": 1733212471,
-        "narHash": "sha256-M1+uCoV5igihRfcUKrr1riygbe73/dzNnzPsmaLCmpo=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "55d15ad12a74eb7d4646254e13638ad0c4128776",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1717432640,
-        "narHash": "sha256-+f9c4/ZX5MWDOuB1rKoWj+lBNm0z0rs4CK47HBLxy1o=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "88269ab3044128b7c2f4c7d68448b2fb50456870",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "release-24.05",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_3": {
       "locked": {
         "lastModified": 1782467914,
         "narHash": "sha256-pGvFkM8N0xEkIIXDe5YYfbEAvHrk4IxBrjB/x8OomhE=",
@@ -386,17 +360,17 @@
         "devenv": "devenv",
         "flake-parts": "flake-parts_2",
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs_3",
+        "nixpkgs": "nixpkgs",
         "pre-commit-hooks": "pre-commit-hooks",
         "process-compose-flake": "process-compose-flake",
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1785681213,
-        "narHash": "sha256-Qn/y4zuM4oar4+iq9cK4I+hyyHyZNrhJ/Xo10WLP6hk=",
+        "lastModified": 1785682068,
+        "narHash": "sha256-vYav6a21otXk58g8SrctIGvbPThxuExD1H6xNiExt0c=",
         "owner": "valeratrades",
         "repo": "v_flakes",
-        "rev": "b4601a26d1873951ac725b762ce69d924c0497bb",
+        "rev": "b67da90bd56eb636987c9d2434441d6ac58ecd0e",
         "type": "github"
       },
       "original": {
