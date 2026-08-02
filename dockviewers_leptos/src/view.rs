@@ -7,12 +7,12 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use dockviewers_core::{Breakpoint, CSS, Config, Group, GroupId, MinSize, PackedState, PanelId, model::serial::LoadError};
+use dockviewers_core::{Band, CSS, Config, Group, GroupId, MinSize, PackedState, PanelId, model::serial::LoadError};
 use leptos::{ev, prelude::*};
 
 use crate::panel::DockPanel;
 
-/// Imperative handle over the packed layout, handed to the host via `on_ready`: a thin wrapper over
+/// Imperative handle over the packed layout, handed to the host via `on_band`: a thin wrapper over
 /// the thread-local `RwSignal<PackedState>` so the host can script tiles, save/load, and read the
 /// live band from outside the component. Every method is a `with`/`update` of the one cell.
 #[derive(Clone, Copy)]
@@ -45,8 +45,15 @@ impl PackedApi {
 		self.state.with(|s| s.cols())
 	}
 
-	pub fn breakpoint(&self) -> Breakpoint {
-		self.state.with(|s| s.breakpoint())
+	/// The band the layout is stored under.
+	pub fn band(&self) -> Band {
+		self.state.with(|s| s.band())
+	}
+
+	/// Whether `on_band`'s invocation follows a restore from the seed cache. Only meaningful inside
+	/// `on_band` — a fresh band arrives with an empty grid, and anything the host places fills it.
+	pub fn restored(&self) -> bool {
+		self.state.with(|s| !s.grid().cells.is_empty())
 	}
 
 	pub fn reset(&self) {
@@ -72,14 +79,16 @@ impl PackedApi {
 /// overlay.
 ///
 /// - `panels` is a signal so windows spawned at runtime appear in the overlay.
-/// - `on_ready`: invoked once with the [`PackedApi`] after the first measure (so seeds can `place`
-///   against a real step size).
+/// - `on_band`: invoked with the [`PackedApi`] once per [`Band`] entry — after the first measure and
+///   again on every band crossing — *after* the framework has resolved that band's seed cache.
+///   [`PackedApi::restored`] says whether it found one; if not, the grid is empty and the host is
+///   expected to place its tiles (or load its own default) against the now-real step size.
 /// - `request_tab`: the per-tile `+` button calls it to ask the host to open a new tab.
 #[component]
 pub fn PackedArea(
 	panels: RwSignal<Vec<DockPanel>>,
 	#[prop(optional)] config: Option<Config>,
-	#[prop(optional)] on_ready: Option<Arc<dyn Fn(PackedApi) + Send + Sync>>,
+	#[prop(optional)] on_band: Option<Arc<dyn Fn(PackedApi) + Send + Sync>>,
 	#[prop(optional)] request_tab: Option<Arc<dyn Fn(GroupId) + Send + Sync>>,
 ) -> impl IntoView {
 	let cfg = config.unwrap_or_default();
@@ -87,24 +96,16 @@ pub fn PackedArea(
 	let api = PackedApi { state };
 	let root = NodeRef::<leptos::html::Div>::new();
 
-	// First measure + seed, once the root mounts (its content box lands a real step size).
-	root.on_load(move |el| {
-		let el: web_sys::Element = el.into();
-		let rect = el.get_bounding_client_rect();
-		state.update(|s| s.set_measure((rect.x(), rect.y()), (el.client_width() as f64, el.client_height() as f64)));
-		if state.try_update(|s| s.take_ready()).unwrap_or(false) {
-			if let Some(cb) = on_ready.clone() {
-				cb(api);
-			}
-		}
+	// The first measure, once the root mounts (its content box lands a real step size).
+	root.on_load({
+		let on_band = on_band.clone();
+		move |el| measure(el.into(), state, api, on_band.as_ref())
 	});
 
-	// Re-measure on a container resize (window is the only resize source).
+	// A container resize (window is the only source) may cross a band, so it runs the latch too.
 	window_event_listener(ev::resize, move |_| {
 		if let Some(el) = root.get_untracked() {
-			let el: web_sys::Element = el.into();
-			let rect = el.get_bounding_client_rect();
-			state.update(|s| s.set_measure((rect.x(), rect.y()), (el.client_width() as f64, el.client_height() as f64)));
+			measure(el.into(), state, api, on_band.as_ref());
 		}
 	});
 
@@ -169,8 +170,7 @@ pub fn PackedArea(
 								style=move || {
 									state
 										.with(|s| {
-											s
-												.content_slots()
+											s.content_slots()
 												.get(&pid)
 												.map(|sl| sl.style.clone())
 												.unwrap_or_else(|| "display:none;".to_string())
@@ -323,13 +323,12 @@ fn render_frame(frame: dockviewers_core::Frame, state: RwSignal<PackedState, Loc
 						e.stop_propagation();
 						state
 							.update(|s| {
-								s
-									.press_tab(
-										id.clone(),
-										gid,
-										(e.client_x() as f64, e.client_y() as f64),
-										(e.offset_x() as f64, e.offset_y() as f64),
-									)
+								s.press_tab(
+									id.clone(),
+									gid,
+									(e.client_x() as f64, e.client_y() as f64),
+									(e.offset_x() as f64, e.offset_y() as f64),
+								)
 							});
 					}
 				>
@@ -351,12 +350,11 @@ fn render_frame(frame: dockviewers_core::Frame, state: RwSignal<PackedState, Loc
 						e.stop_propagation();
 						state
 							.update(|s| {
-								s
-									.press_tile(
-										gid,
-										(e.client_x() as f64, e.client_y() as f64),
-										(e.offset_x() as f64, e.offset_y() as f64),
-									)
+								s.press_tile(
+									gid,
+									(e.client_x() as f64, e.client_y() as f64),
+									(e.offset_x() as f64, e.offset_y() as f64),
+								)
 							});
 					}
 				>
@@ -405,6 +403,19 @@ fn render_frame(frame: dockviewers_core::Frame, state: RwSignal<PackedState, Loc
 		</div>
 	}
 	.into_any()
+}
+
+/// Hand the root's origin + content box to the core measure, then resolve the band: the latch has
+/// already restored-or-reset the grid by the time `on_band` runs, so the host only fills in what it
+/// left behind.
+fn measure(el: web_sys::Element, state: RwSignal<PackedState, LocalStorage>, api: PackedApi, on_band: Option<&Arc<dyn Fn(PackedApi) + Send + Sync>>) {
+	let rect = el.get_bounding_client_rect();
+	state.update(|s| s.set_measure((rect.x(), rect.y()), (el.client_width() as f64, el.client_height() as f64)));
+	if state.try_update(|s| s.take_band()).expect("state signal alive").is_some()
+		&& let Some(cb) = on_band
+	{
+		cb(api);
+	}
 }
 
 /// The `.dv-packed` root's scroll offset — bridges the tiles' scrolled content space and the

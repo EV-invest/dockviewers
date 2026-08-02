@@ -1,8 +1,8 @@
 [package]
 name = "dockviewers_dioxus"
-version = "0.1.10"
+version = "0.2.0"
 edition = "2024"
-description = "Dioxus binding for the dockviewers packed-grid tiling layout — panes split, resize, tab, float, and maximize, saved to JSON and restored on reload. Drives the framework-agnostic dockviewers_core engine."
+description = "Dioxus binding for the dockviewers packed-grid tiling layout — panes split, resize, tab, float, and maximize, cached per screen band. Drives the framework-agnostic dockviewers_core engine."
 license = "BlueOak-1.0.0"
 repository = "https://github.com/EV-invest/dockviewers"
 documentation = "https://docs.rs/dockviewers_dioxus"

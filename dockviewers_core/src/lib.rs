@@ -1,7 +1,7 @@
 #![feature(default_field_values)]
 //! `dockviewers_core` — the framework-agnostic engine behind the `dockviewers` packed-grid
 //! tiling layout. No Dioxus, no Leptos: a pure data **model** ([`model`]), a gesture **reducer**
-//! ([`state`]) over a plain [`PackedState`] struct, layout **persistence** ([`persist`]), and the
+//! ([`state`]) over a plain [`PackedState`] struct, the built-in per-[`Band`] seed cache, and the
 //! structural **[`CSS`]**. Both the Dioxus and Leptos bindings drive this same core.
 //!
 //! Tiles have a fixed starting size, snap to a step grid, never overlap, and leave whitespace
@@ -11,11 +11,11 @@
 
 pub mod config;
 pub mod model;
-pub mod persist;
 pub mod state;
 
 mod css;
-pub use config::{Breakpoint, Config, Keybind, Keybinds};
+mod persist;
+pub use config::{Band, Breakpoint, Config, Keybind, Keybinds, Saved};
 pub use css::CSS;
 pub use model::{
 	Group, GroupId, PanelId,

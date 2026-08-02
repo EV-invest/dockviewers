@@ -1,9 +1,16 @@
-# Cross-browser keybind regression test
+# Cross-browser browser tests
 
-Guards the one thing that silently broke in Firefox: `PackedArea`'s `window` keydown listener
-must *recognize* its configured binds in **both** Chromium and Firefox. It asserts recognition
-(the lib calls `preventDefault()` + logs `dockview keybind:` the instant a bind matches), not the
-downstream action — so it's stable regardless of layout state.
+Everything here runs in **both** Chromium and Firefox, since that split is what silently broke
+before.
+
+- `keybind.spec.mjs` — `PackedArea`'s `window` keydown listener must *recognize* its configured
+  binds. It asserts recognition (the lib calls `preventDefault()` + logs `dockview keybind:` the
+  instant a bind matches), not the downstream action — so it's stable regardless of layout state.
+- `seed-cache.spec.mjs` — the built-in per-band `localStorage` cache: `Alt+S` writes
+  `<storage_key>-<band>`, a reload restores it instead of re-seeding, another band uses another
+  key, and `Alt+Shift+S` only calls the host hook. Playwright gives each test a fresh context, so
+  the cache starts empty without any wiping (an `addInitScript` clear would also run on `reload`
+  and destroy what the test just saved).
 
 ## Run
 
@@ -33,7 +40,7 @@ Playwright's own browser downloads don't run on NixOS; use the nix-provided set 
 ships. Export its store path before running:
 
 ```sh
-export PLAYWRIGHT_BROWSERS_PATH=$(nix eval --raw nixpkgs#playwright-driver.browsers)/…
+export PLAYWRIGHT_BROWSERS_PATH=$(nix eval --raw nixpkgs#playwright-driver.browsers)
 ```
 
 (`PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1` is set automatically in `playwright.config.mjs`.)

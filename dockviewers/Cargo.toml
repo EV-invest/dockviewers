@@ -1,8 +1,8 @@
 [package]
 name = "dockviewers"
-version = "0.1.10"
+version = "0.2.0"
 edition = "2024"
-description = "Packed-grid tiling/docking layout — a framework-agnostic engine with optional Dioxus and Leptos bindings behind feature flags. Panes split, resize, tab, float, and maximize, saved to JSON and restored on reload."
+description = "Packed-grid tiling/docking layout — a framework-agnostic engine with optional Dioxus and Leptos bindings behind feature flags. Panes split, resize, tab, float, and maximize, cached per screen band."
 license = "BlueOak-1.0.0"
 repository = "https://github.com/EV-invest/dockviewers"
 documentation = "https://docs.rs/dockviewers"

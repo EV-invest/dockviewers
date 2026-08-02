@@ -26,14 +26,19 @@ fn make_panel(kind: &str, n: u64) -> DockPanel {
 	DockPanel {
 		id: PanelId(format!("{kind}-{n}")),
 		title,
-		content: Arc::new(move || view! {
-			<div style="padding:10px; color:#ddd; font:13px system-ui;">{format!("{label} pane")}</div>
-		}.into_any()),
+		content: Arc::new(move || {
+			view! {
+				<div style="padding:10px; color:#ddd; font:13px system-ui;">{format!("{label} pane")}</div>
+			}
+			.into_any()
+		}),
 	}
 }
 
-/// Seed a small starting spread through the shared [`PackedApi`], after the first measure.
+/// Seed a small starting spread through the shared [`PackedApi`], on entry into each band. This
+/// smoke sets no `storage_key`, so every band arrives fresh and re-seeds from scratch.
 fn seed(api: PackedApi, panels: RwSignal<Vec<DockPanel>>) {
+	panels.update(|v| v.clear());
 	for (i, kind) in ["Chart", "Order Book", "Trades", "Console"].iter().enumerate() {
 		let panel = make_panel(kind, i as u64);
 		let id = panel.id.clone();
@@ -46,7 +51,7 @@ fn seed(api: PackedApi, panels: RwSignal<Vec<DockPanel>>) {
 #[component]
 fn App() -> impl IntoView {
 	let panels = RwSignal::new(Vec::<DockPanel>::new());
-	let on_ready: Arc<dyn Fn(PackedApi) + Send + Sync> = Arc::new(move |api: PackedApi| seed(api, panels));
+	let on_band: Arc<dyn Fn(PackedApi) + Send + Sync> = Arc::new(move |api: PackedApi| seed(api, panels));
 	// The `+` button target: this smoke has no catalog, so it's a no-op.
 	let request_tab: Arc<dyn Fn(GroupId) + Send + Sync> = Arc::new(|_gid| {});
 
@@ -60,7 +65,7 @@ fn App() -> impl IntoView {
 				<PackedArea
 					panels=panels
 					config=Config::default()
-					on_ready=on_ready
+					on_band=on_band
 					request_tab=request_tab
 				/>
 			</div>

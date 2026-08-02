@@ -25,16 +25,8 @@ mod watchlist;
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use dockviewers_dioxus::{Action, Breakpoint, Config, DockPanel, Group, GroupId, Keybind, MinSize, PackedApi, PackedArea, PackedState, PanelId, Step, persist};
+use dockviewers_dioxus::{Config, DockPanel, Group, GroupId, MinSize, PackedApi, PackedArea, PanelId, Saved, Step};
 use market::{Market, xorshift};
-
-/// localStorage key prefix the layout round-trips through (see `dockviewers_dioxus::persist`/`serial`).
-/// The live [`Breakpoint`] is appended so each screen band keeps its own arrangement of the view.
-const STORAGE_KEY: &str = "insilico-layout";
-
-fn key(bp: Breakpoint) -> String {
-	format!("{STORAGE_KEY}-{bp}")
-}
 
 fn main() {
 	// The only renderer wired in is `dioxus/web`, so a launch needs a wasm host. A native
@@ -184,19 +176,23 @@ fn seed_fresh(panels: Signal<Vec<DockPanel>>, counter: Signal<u64>, a: PackedApi
 	spawn(Kind::Chat, 12, 14, panels, counter, a);
 }
 
-/// Host-registered chord: `Alt+S` notifies the user then stubs the "POST layout to server" pipe
-/// by reading the live layout JSON the closure's [`PackedApi`] hands it. Swap the `alert` for a
-/// real `fetch` to ship it.
+/// The whole persistence story: name a `localStorage` namespace and the framework caches this
+/// browser's layout per band on `Alt+S`, restoring it before `on_band` ever runs. `on_save` is
+/// feedback only — except for `Published`, which is where a host with a server would `fetch` the
+/// JSON up as the default *other* visitors land on. This example just says what it would send.
 fn insilico_config() -> Config {
-	let save: Action = Rc::new(|st: &mut PackedState| {
-		let msg = format!("Alt+S: would POST {} bytes of layout", st.save().len());
-		#[cfg(target_arch = "wasm32")]
-		web_sys::window().expect("a browser window").alert_with_message(&msg).expect("alert");
-		#[cfg(not(target_arch = "wasm32"))]
-		println!("{msg}");
-	});
 	Config {
-		actions: vec![(Keybind { key: "s", alt: true, ctrl: false }, save)],
+		storage_key: Some("insilico-layout".into()),
+		on_save: Some(Rc::new(|saved| {
+			let msg = match saved {
+				Saved::Cached { band } => format!("Alt+S: cached the {band} layout in this browser"),
+				Saved::Published { band, json } => format!("Alt+Shift+S: would publish {} bytes as the {band} default", json.len()),
+			};
+			#[cfg(target_arch = "wasm32")]
+			web_sys::window().expect("a browser window").alert_with_message(&msg).expect("alert");
+			#[cfg(not(target_arch = "wasm32"))]
+			println!("{msg}");
+		})),
 		..Default::default()
 	}
 }
@@ -217,27 +213,14 @@ fn app() -> Element {
 		}
 	});
 
-	let seed = Callback::new(move |a: PackedApi| api.set(Some(a)));
-
-	// One effect per (band, settled edit): re-arrange the view per screen band and persist it under
-	// that band's own key. Staying in a band just checkpoints; crossing into a new one restores that
-	// band's saved layout (or seeds a fresh spread), so the same view has a distinct signature per
-	// device size. `shown` is `peek`ed, not read, so writing it here doesn't re-fire the effect.
-	let mut shown = use_signal(|| None::<Breakpoint>);
-	use_effect(move || {
-		let Some(mut a) = api() else { return };
+	// Once per band: the framework has already restored this band's cached layout (or left the grid
+	// empty), so all that's left is to give the tiles their content back — or lay out a fresh spread.
+	let on_band = Callback::new(move |a: PackedApi| {
 		let mut panels = panels;
-		// `breakpoint()` reads the state cell, so this effect re-runs on every settled edit (to persist).
-		let bp = a.breakpoint();
-		if *shown.peek() == Some(bp) {
-			persist::write(&key(bp), &a.save());
-			return;
-		}
-		shown.set(Some(bp));
-		if persist::read(&key(bp)).is_some_and(|json| a.load(&json).is_ok()) {
+		api.set(Some(a));
+		if a.restored() {
 			rebuild_panels(a, panels, counter);
 		} else {
-			a.reset();
 			panels.write().clear();
 			seed_fresh(panels, counter, a);
 		}
@@ -267,7 +250,7 @@ fn app() -> Element {
 				}
 			}
 			div { style: "flex:1 1 auto; position:relative;",
-				PackedArea { panels, on_ready: Some(seed), config: Some(insilico_config()) }
+				PackedArea { panels, on_band: Some(on_band), config: Some(insilico_config()) }
 			}
 			if let Some(gid) = pending() {
 				CatalogPopup { gid, panels, counter, api, pending }
