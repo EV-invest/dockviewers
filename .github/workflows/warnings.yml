@@ -61,8 +61,7 @@ jobs:
       with:
         name: modified-cargo-files
     - uses: dtolnay/install@cargo-docs-rs
-    - run: "for p in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name');\
-        \ do\n  cargo docs-rs -p \"$p\"\ndone\n"
+    - run: cargo docs-rs
     timeout-minutes: 45
   rust-machete:
     name: Unused Dependencies

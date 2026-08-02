@@ -1,19 +1,17 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    pre-commit-hooks.url = "github:cachix/git-hooks.nix";
-    pre-commit-hooks.inputs.nixpkgs.follows = "nixpkgs";
     v_flakes.url = "github:valeratrades/v_flakes?ref=v1.6";
-    v_flakes.inputs.nixpkgs.follows = "nixpkgs";
   };
-  outputs = { self, nixpkgs, flake-utils, pre-commit-hooks, v_flakes }:
+  outputs = { self, v_flakes }:
+    let
+      inherit (v_flakes) flake-utils pre-commit-hooks;
+    in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import nixpkgs {
+        pkgs = import v_flakes.default_nixpkgs {
           inherit system;
-          allowUnfree = true;
+          config.allowUnfree = true;
         };
         # Canonical toolchain pinned in v_flakes — byte-identical across repos, so
         # the nix store dedups it and sccache cross-references compilations.
