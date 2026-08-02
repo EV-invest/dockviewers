@@ -83,3 +83,5 @@ CLAUDE.md
 ### could be used for initial debugging of apps using `config` crate
 /config.toml
 **/rustc-ice*
+.pre-commit-config.yaml
+
