@@ -24,11 +24,9 @@ use crate::{
 	persist,
 };
 
-/// Approx root font size; bridges rem ⇄ px so a type's rem-expressed [`MinSize`] resolves to whole
-/// steps against the live step size.
+/// Root font size assumed before the first measure, and on a non-DOM target (the fuzzer). Every
+/// browser's default.
 const REM_PX: f64 = 16.0;
-/// Fixed header-bar height (CSS pins it); content starts below it.
-pub(crate) const CHROME_H: f64 = 32.0;
 /// A press promotes to a drag only past this many px, so a click still activates a tab.
 const DRAG_THRESHOLD: f64 = 4.0;
 
@@ -42,6 +40,10 @@ pub struct PackedState {
 	cols: u32,
 	/// Live px-per-step on each axis (`width / cols`, `height / rows`); `(0, 0)` until first measure.
 	step_px: (f64, f64),
+	/// The document's actual root font size, re-read at every measure. Bridges rem ⇄ px for the
+	/// chrome height and a type's rem-expressed [`MinSize`], so both track browser zoom / a reader's
+	/// font preference instead of assuming 16.
+	rem_px: f64,
 	breakpoint: Breakpoint,
 	drag: Option<Drag>,
 	resize: Option<ResizeStart>,
@@ -67,6 +69,7 @@ impl PackedState {
 			grid: PackedGrid::default(),
 			cols,
 			step_px: (0.0, 0.0),
+			rem_px: REM_PX,
 			breakpoint: Breakpoint::default(),
 			drag: None,
 			resize: None,
@@ -88,7 +91,7 @@ impl PackedState {
 	pub fn place(&mut self, group: Group, w: u32, h: u32, min: MinSize) {
 		let (sw, sh) = self.step_px;
 		assert!(sw > 0.0 && sh > 0.0, "place before the first measure: no step size yet");
-		self.grid.place(group, w, h, min.resolve(sw, sh, REM_PX), self.cols);
+		self.grid.place(group, w, h, min.resolve(sw, sh, self.rem_px), self.cols);
 	}
 
 	pub fn add_tab(&mut self, group: GroupId, panel: PanelId) {
@@ -130,6 +133,13 @@ impl PackedState {
 		self.breakpoint.band()
 	}
 
+	/// Title-bar height in px — the one resolution of [`Config::title_h_rem`], used for the content
+	/// overlay's chrome offset and the header's drop hit-test. The stylesheet sizes the same bar from
+	/// the `--dv-title-h` the binding emits, so they agree by construction.
+	pub fn title_h(&self) -> f64 {
+		self.cfg.title_h_rem * self.rem_px
+	}
+
 	/// Read access to the live grid — for a host rebuilding its panel list from a restored layout.
 	pub fn grid(&self) -> &PackedGrid {
 		&self.grid
@@ -152,6 +162,7 @@ impl PackedState {
 	pub fn set_measure(&mut self, origin: (f64, f64), size: (f64, f64)) {
 		self.root_origin = origin;
 		self.root_size = size;
+		self.rem_px = root_font_px();
 		let (width, height) = size;
 		if width <= 0.0 || height <= 0.0 {
 			return;
@@ -290,7 +301,7 @@ impl PackedState {
 			cursor.1 - oy + scroll_y,
 			sw,
 			sh,
-			CHROME_H,
+			self.title_h(),
 			self.cols,
 			d.src_w,
 			d.src_h,
@@ -646,7 +657,7 @@ impl PackedState {
 				let style = if hidden.contains(id) {
 					"display:none;".to_string()
 				} else {
-					slot_style(maximized, cell.group.id, cell.x, cell.y, cell.w, cell.h, id == &active, sw, sh)
+					slot_style(maximized, cell.group.id, cell.x, cell.y, cell.w, cell.h, id == &active, sw, sh, self.title_h())
 				};
 				map.insert(id.clone(), ContentSlot { style, group: cell.group.id });
 			}
@@ -786,21 +797,45 @@ pub struct KeyOutcome {
 /// Inline style placing a panel's content over its tile's body from the grid rect — the same math
 /// the skeleton uses, so the two cannot drift apart. Inactive tabs stay mounted but `display:none`;
 /// a maximized group's active panel fills the container below the chrome, all others hidden.
-fn slot_style(maximized: Option<GroupId>, group: GroupId, x: u32, y: u32, w: u32, h: u32, active: bool, step_w: f64, step_h: f64) -> String {
+fn slot_style(maximized: Option<GroupId>, group: GroupId, x: u32, y: u32, w: u32, h: u32, active: bool, step_w: f64, step_h: f64, chrome_h: f64) -> String {
 	if let Some(mg) = maximized {
 		if group != mg || !active {
 			return "display:none;".into();
 		}
-		return format!("display:block; left:0; top:{CHROME_H}px; width:100%; height:calc(100% - {CHROME_H}px);");
+		return format!("display:block; left:0; top:{chrome_h}px; width:100%; height:calc(100% - {chrome_h}px);");
 	}
 	if !active {
 		return "display:none;".into();
 	}
-	// Tiles scale with the step px; the chrome band stays a fixed px (the header CSS pins it), so the
-	// content's top/height bridge the two with `calc`.
+	// Tiles scale with the step px; the chrome band is a font-relative constant, so the content's
+	// top/height bridge the two with `calc`.
 	let (left, top) = (x as f64 * step_w, y as f64 * step_h);
 	let (width, height) = (w as f64 * step_w, h as f64 * step_h);
-	format!("display:block; left:{left}px; top:calc({top}px + {CHROME_H}px); width:{width}px; height:calc({height}px - {CHROME_H}px);")
+	format!("display:block; left:{left}px; top:calc({top}px + {chrome_h}px); width:{width}px; height:calc({height}px - {chrome_h}px);")
+}
+
+/// The document's root font size in px. Only ever reached from a live measure of a mounted element,
+/// so every step here is guaranteed — a failure means the DOM isn't what it claims, which would
+/// silently mis-scale every tile's chrome, so it panics instead.
+#[cfg(target_arch = "wasm32")]
+fn root_font_px() -> f64 {
+	let win = web_sys::window().expect("a browser window");
+	let root = win.document().expect("a document").document_element().expect("a document element");
+	let style = win
+		.get_computed_style(&root)
+		.expect("our own document element is never cross-origin")
+		.expect("a rendered root has a style declaration");
+	// A *computed* font-size is always an absolute px length, whatever the author wrote.
+	style
+		.get_property_value("font-size")
+		.expect("property lookup never throws")
+		.trim_end_matches("px")
+		.parse()
+		.expect("computed font-size is an absolute px length")
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn root_font_px() -> f64 {
+	REM_PX
 }
 
 /// An in-flight reposition: what was picked up, where the press began (client px, to measure the

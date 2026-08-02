@@ -22,9 +22,9 @@ use crate::{
 	sim::{EDGES, MAX_H, MAX_W, MIN_H, MIN_W, World},
 };
 
-/// Height of the tile chrome, pinned by `.dv-header` in the stylesheet and by `CHROME_H` in the
-/// reducer. Mirrored here only to aim at headers and to re-run the pure `resolve_target` for the
-/// coverage tally.
+/// Height of the tile chrome: `Config::title_h_rem`'s default resolved against the 16px root font a
+/// non-DOM target assumes. Mirrored here only to aim at headers and to re-run the pure
+/// `resolve_target` for the coverage tally.
 const CHROME_H: f64 = 32.0;
 
 /// Action kinds, in the order their swarm weights are drawn.

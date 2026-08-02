@@ -92,6 +92,7 @@ pub fn PackedArea(
 	#[prop(optional)] request_tab: Option<Arc<dyn Fn(GroupId) + Send + Sync>>,
 ) -> impl IntoView {
 	let cfg = config.unwrap_or_default();
+	let title_h_rem = cfg.title_h_rem;
 	let state = RwSignal::new_local(PackedState::new(cfg));
 	let api = PackedApi { state };
 	let root = NodeRef::<leptos::html::Div>::new();
@@ -144,7 +145,9 @@ pub fn PackedArea(
 
 	view! {
 		<style>{CSS}</style>
-		<div class="dv-packed" node_ref=root>
+		// `--dv-title-h` is the stylesheet's one knob for the chrome band; the state resolves the same
+		// rem to px for the content overlay's offset.
+		<div class="dv-packed" node_ref=root style=format!("--dv-title-h: {title_h_rem}rem;")>
 			// Tile skeleton — coarse re-render on any state change (no user content lives here).
 			{move || {
 				let titles = panel_titles(panels);

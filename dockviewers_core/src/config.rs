@@ -78,6 +78,11 @@ pub struct Config {
 	/// Fires after a save chord. `None` ⇒ [`publish`](Keybinds::publish) is unbound, since the
 	/// framework has nowhere to put a published layout on its own.
 	pub on_save: Option<Rc<dyn Fn(Saved)>> = None,
+	/// Height of a tile's title bar, in `rem` — so it tracks the reader's font size (the bar has to
+	/// fit its tab text) rather than the viewport, which the grid already handles via [`Breakpoint`].
+	/// Emitted as `--dv-title-h` on the root and resolved to px for the content overlay's offset.
+	/// The corner resize handle is pinned to half of it.
+	pub title_h_rem: f64 = 2.0,
 }
 
 /// Config never changes at runtime; a binding compares it only to decide whether to re-seed. The
@@ -89,6 +94,7 @@ impl PartialEq for Config {
 			&& self.rows == other.rows
 			&& self.storage_key == other.storage_key
 			&& self.on_save.is_some() == other.on_save.is_some()
+			&& self.title_h_rem == other.title_h_rem
 			&& self.actions.len() == other.actions.len()
 			&& self.actions.iter().zip(&other.actions).all(|(a, b)| a.0 == b.0)
 	}

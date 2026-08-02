@@ -15,7 +15,7 @@ categories = ["gui", "wasm"]
 # Touching `window`/DOM is web-only; gated so native `cargo check`/`cargo test` stay green.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "DomRect", "Node", "NodeList", "console"] }
+web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "DomRect", "Node", "NodeList", "CssStyleDeclaration", "console"] }
 
 [dependencies]
 serde.workspace = true

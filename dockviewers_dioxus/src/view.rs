@@ -93,6 +93,7 @@ impl PackedApi {
 #[component]
 pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<PackedApi>>, config: Option<Config>) -> Element {
 	let cfg = config.unwrap_or_default();
+	let title_h_rem = cfg.title_h_rem;
 	// Root-scope, not this scope: `PackedApi` is driven from outside `PackedArea`'s subtree, so the
 	// cell must outlive this component (this root component never unmounts).
 	let mut state = use_hook(move || Signal::new_in_scope(PackedState::new(cfg), ScopeId::ROOT));
@@ -161,6 +162,8 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 		style { dangerous_inner_html: CSS }
 		div {
 			class: "dv-packed",
+			// The stylesheet's one knob for the chrome band; the state resolves the same rem to px.
+			style: "--dv-title-h: {title_h_rem}rem;",
 			onmounted: move |e| measure_mounted(e, state, api, on_band),
 			onresize: move |_| remeasure(state, api, on_band),
 

@@ -6,10 +6,11 @@ pub const CSS: &str = r#"
 .dv-group { display: flex; flex-direction: column; width: 100%; height: 100%;
 	background: var(--dv-group-bg, #1e1e1e); }
 /* One header bar holds the tabs and the actions (insilico's elevated tab strip); the active
-   tab is the title, so there's no separate titlebar. Height is pinned (box-sizing: border-box)
-   so the content overlay's fixed chrome offset (CHROME_H in state) matches the skeleton.
+   tab is the title, so there's no separate titlebar. `--dv-title-h` is emitted on the root from
+   `Config::title_h_rem`, which the state also resolves to px for the content overlay's chrome
+   offset — the two cannot drift.
    Its empty area is the tile's move-handle; tabs/actions stop propagation for their own gestures. */
-.dv-header { flex: 0 0 auto; height: 32px; box-sizing: border-box; display: flex;
+.dv-header { flex: 0 0 auto; height: var(--dv-title-h, 2rem); box-sizing: border-box; display: flex;
 	align-items: stretch; overflow: hidden; cursor: grab; background: var(--dv-tabstrip-bg, #2d2d2d); }
 .dv-actions { flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; gap: 2px; padding: 0 4px; }
 .dv-action { cursor: pointer; border: 0; background: transparent; color: var(--dv-fg, #ddd);
@@ -24,10 +25,12 @@ pub const CSS: &str = r#"
 .dv-overlay { position: absolute; inset: 0; pointer-events: none; }
 .dv-render-overlay { position: absolute; overflow: hidden; pointer-events: auto;
 	box-sizing: border-box; padding: var(--dv-content-pad, 6px 10px); }
-.dv-resize-handle { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px;
+/* Pinned to half the title bar, so the grab corner keeps its proportion at any chrome height. */
+.dv-resize-handle { position: absolute; right: 0; bottom: 0;
+	width: calc(var(--dv-title-h, 2rem) / 2); height: calc(var(--dv-title-h, 2rem) / 2);
 	cursor: nwse-resize; z-index: 101; background: var(--dv-resize-bg, #555); }
-.dv-resize-handle::after { content: "⌟"; position: absolute; right: 1px; bottom: -3px;
-	font-size: 13px; line-height: 1; color: var(--dv-fg, #ddd); }
+.dv-resize-handle::after { content: "⌟"; position: absolute; right: 0.08em; bottom: -0.23em;
+	font-size: calc(var(--dv-title-h, 2rem) / 2); line-height: 1; color: var(--dv-fg, #ddd); }
 /* Horizontal is fully model-bounded (every tile satisfies x + w ≤ cols), so a horizontal
    scrollbar is never legitimate — clip it. Only the vertical axis (whitespace/stack below) scrolls. */
 .dv-packed { position: relative; width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto;
