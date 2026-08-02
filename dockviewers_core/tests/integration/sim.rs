@@ -8,7 +8,7 @@
 //! layer that actually produces it.
 
 use dockviewers_core::{
-	Config, Group, GroupId, PackedState, PanelId, Step,
+	Band, Config, Group, GroupId, PackedState, PanelId, Step,
 	model::packed::{DropTarget, MinSize, PackedGrid},
 };
 
@@ -32,6 +32,8 @@ pub struct World {
 	pub origin: (f64, f64),
 	pub size: (f64, f64),
 	pub cursor: (f64, f64),
+	/// The [`Band`] the latch has already resolved — what `take_band` is asserted against.
+	pub band: Option<Band>,
 	/// Grid snapshots keyed by the container size they settled at, since the last *structural* edit.
 	/// A container resize is pure reflow, so returning to a previously-seen size must reproduce that
 	/// size's exact arrangement; any structural edit changes the layout for non-viewport reasons and
@@ -65,6 +67,7 @@ impl World {
 	pub fn measure(&mut self, w: f64, h: f64) -> Result<(), String> {
 		self.size = (w, h);
 		self.state.set_measure(self.origin, self.size);
+		self.resolve_band()?;
 		match self.measure_log.iter().find(|(s, _)| *s == self.size) {
 			Some((_, prev)) if prev != self.state.grid() => Err(format!(
 				"measure round-trip changed the arrangement at {w}x{h} (cols={}): {:?} vs {:?}",
@@ -79,6 +82,51 @@ impl World {
 				Ok(())
 			}
 		}
+	}
+
+	/// The band-resolution latch, driven exactly as a binding does — `take_band` after every
+	/// measure. It must fire once on entry into a band group and never again within it. Natively
+	/// [`persist`](dockviewers_core) reads nothing, so every fire is a miss: the framework has left
+	/// the grid reset and this stands in for the host's `on_band` re-seed. Which makes a band
+	/// crossing a structural edit, so the measure round-trip baseline goes with it.
+	fn resolve_band(&mut self) -> Result<(), String> {
+		let band = self.state.band();
+		match (self.band, self.state.take_band()) {
+			(Some(prev), None) if prev == band => Ok(()),
+			(prev, None) => Err(format!("band {prev:?} → {band} but the latch never fired")),
+			(Some(prev), Some(_)) if prev == band => Err(format!("the latch fired without leaving band {band}")),
+			(_, Some(restored)) => {
+				if restored {
+					return Err(format!("nothing is stored natively, so entering {band} can only report a miss"));
+				}
+				if !self.state.grid().cells.is_empty() {
+					return Err(format!("a missed band ({band}) must leave the grid reset for the host to seed: {:?}", self.state.grid().cells));
+				}
+				if self.state.take_band().is_some() {
+					return Err(format!("the latch re-armed without leaving band {band}"));
+				}
+				self.band = Some(band);
+				self.structural_edit();
+				self.seed_tiles();
+				Ok(())
+			}
+		}
+	}
+
+	/// The starting spread: a few packed tiles, one with a second tab. Placed through the real
+	/// `place`/`add_tab` path whenever the framework hands back a reset grid — what a host's
+	/// `on_band` does on a cache miss.
+	fn seed_tiles(&mut self) {
+		let (cols, rows) = (self.state.cols(), self.cfg.rows);
+		for (fw, fh) in [(0.25, 0.3), (0.3, 0.25), (0.2, 0.4), (0.35, 0.3)] {
+			let gid = self.state.mint_group_id();
+			let panel = self.mint_panel();
+			let (w, h) = (((cols as f64 * fw) as u32).max(1), ((rows as f64 * fh) as u32).max(1));
+			self.state.place(Group::new(gid, panel), w, h, MinSize::Steps { w: Step(1), h: Step(1) });
+		}
+		// give the first tile a second tab so tab-tears have something to bite on from the start.
+		let extra = self.mint_panel();
+		self.state.add_tab(GroupId(0), extra);
 	}
 
 	/// A non-viewport mutation: invalidate the measure round-trip baseline.
@@ -146,8 +194,9 @@ pub fn run(seed: u64, size: usize, verbose: bool, observe: &mut dyn FnMut(Option
 	Ok(())
 }
 
-/// A small starting layout (a few packed tiles, one with a second tab), built through the real
-/// `set_measure`/`place`/`add_tab` path so the fuzzer starts from realistic non-trivial state.
+/// The seeded world: the first measure arms the band latch, whose miss the [`World::seed_tiles`]
+/// re-seed answers — the same path a band crossing mid-run takes, so a run starts exactly where a
+/// resize would leave it.
 fn seed_world(frng: &mut Frng) -> World {
 	let cfg = Config::default();
 	let mut world = World {
@@ -158,6 +207,7 @@ fn seed_world(frng: &mut Frng) -> World {
 		origin: (17.0, 23.0),
 		size: (0.0, 0.0),
 		cursor: (0.0, 0.0),
+		band: None,
 		measure_log: Vec::new(),
 		undo_log: Vec::new(),
 		resolved: Vec::new(),
@@ -165,18 +215,6 @@ fn seed_world(frng: &mut Frng) -> World {
 	// Seed-derived initial container size, so different runs start packed in different bands.
 	let (w, h) = (frng.span(MIN_W, MAX_W), frng.span(MIN_H, MAX_H));
 	world.measure(w, h).expect("the first measure has no baseline to contradict");
-	assert!(world.state.take_ready(), "the first real measure arms the seed latch");
-
-	let (cols, rows) = (world.state.cols(), world.cfg.rows);
-	for (fw, fh) in [(0.25, 0.3), (0.3, 0.25), (0.2, 0.4), (0.35, 0.3)] {
-		let gid = world.state.mint_group_id();
-		let panel = world.mint_panel();
-		let (w, h) = (((cols as f64 * fw) as u32).max(1), ((rows as f64 * fh) as u32).max(1));
-		world.state.place(Group::new(gid, panel), w, h, MinSize::Steps { w: Step(1), h: Step(1) });
-	}
-	// give the first tile a second tab so tab-tears have something to bite on from the start.
-	let extra = world.mint_panel();
-	world.state.add_tab(GroupId(0), extra);
 	world.settle();
 	world
 }

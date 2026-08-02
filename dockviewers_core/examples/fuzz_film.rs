@@ -56,7 +56,7 @@ const C_FG: &str = "#ddd";
 /// `--dv-shadow-bg` is `rgba(160,160,160,0.18)`; flattened over the tile bg so the landing cell is
 /// legible at film scale.
 const C_SHADOW: &str = "#3d3d3d";
-const BUCKETS: [&str; 29] = [
+const BUCKETS: [&str; 27] = [
 	"Measure",
 	"Place",
 	"AddTab",
@@ -81,10 +81,8 @@ const BUCKETS: [&str; 29] = [
 	"key Help",
 	"key Escape",
 	"key Inspect",
-	"band xs",
 	"band sm",
 	"band md",
-	"band lg",
 	"band xl",
 ];
 /// Every flag also reads a `FILM_*` variable, so the film is scriptable from an env without a
@@ -151,7 +149,7 @@ fn main() {
 	let mut observe = |action: Option<&actions::Action>, world: &sim::World| {
 		let caption = match action {
 			None => format!("seed {seed} \u{b7} start"),
-			Some(a) => format!("step {step} \u{b7} {} \u{b7} cols={} \u{b7} {}", world.state.breakpoint(), world.state.cols(), summary(a, world)),
+			Some(a) => format!("step {step} \u{b7} {} \u{b7} cols={} \u{b7} {}", world.state.band(), world.state.cols(), summary(a, world)),
 		};
 		if action.is_some() {
 			step += 1;
@@ -221,10 +219,10 @@ fn hit(action: &actions::Action, world: &sim::World) -> u32 {
 	}
 	m |= 1
 		<< (24
-			+ ["xs", "sm", "md", "lg", "xl"]
+			+ ["sm", "md", "xl"]
 				.iter()
-				.position(|b| *b == world.state.breakpoint().to_string())
-				.expect("Breakpoint renders as one of its five bands"));
+				.position(|b| *b == world.state.band().to_string())
+				.expect("Band renders as one of its three names"));
 	m
 }
 

@@ -12,6 +12,6 @@
 pub mod panel;
 pub mod view;
 
-pub use dockviewers_core::{Breakpoint, Config, Group, GroupId, Keybind, Keybinds, MinSize, PackedGrid, PackedState, PanelId, Step, config::Action, model, persist};
+pub use dockviewers_core::{Band, Config, Group, GroupId, Keybind, Keybinds, MinSize, PackedGrid, PackedState, PanelId, Saved, Step, config::Action, model};
 pub use panel::{DockPanel, PanelView};
 pub use view::{PackedApi, PackedArea};

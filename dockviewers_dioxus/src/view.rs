@@ -7,11 +7,11 @@
 use std::collections::HashMap;
 
 use dioxus::{html::input_data::MouseButton, prelude::*};
-use dockviewers_core::{Breakpoint, CSS, Config, Group, GroupId, MinSize, PackedState, PanelId};
+use dockviewers_core::{Band, CSS, Config, Group, GroupId, MinSize, PackedState, PanelId};
 
 use crate::panel::DockPanel;
 
-/// Imperative handle over the packed layout, handed to the host via `on_ready`: a thin wrapper
+/// Imperative handle over the packed layout, handed to the host via `on_band`: a thin wrapper
 /// over the root-scope `Signal<PackedState>` so the host can script tiles, save/load, and read the
 /// live band from *outside* [`PackedArea`]'s subtree. Every method is a `read`/`write` of the one
 /// cell; the reducer does the work.
@@ -45,8 +45,15 @@ impl PackedApi {
 		self.state.read().cols()
 	}
 
-	pub fn breakpoint(&self) -> Breakpoint {
-		self.state.read().breakpoint()
+	/// The band the layout is stored under.
+	pub fn band(&self) -> Band {
+		self.state.read().band()
+	}
+
+	/// Whether `on_band`'s invocation follows a restore from the seed cache. Only meaningful inside
+	/// `on_band` — a fresh band arrives with an empty grid, and anything the host places fills it.
+	pub fn restored(&self) -> bool {
+		!self.state.read().grid().cells.is_empty()
 	}
 
 	/// Wipe the layout back to empty (a host re-seeding a fresh band).
@@ -77,12 +84,14 @@ impl PackedApi {
 /// its own box, and stacks the tile skeleton over the content overlay.
 ///
 /// - `panels` is a `Signal` so windows spawned at runtime appear in the overlay.
-/// - `on_ready`: invoked once with the [`PackedApi`] after the first measure (so seeds can `place`
-///   against a real step size), letting a host script the initial tiles.
+/// - `on_band`: invoked with the [`PackedApi`] once per [`Band`] entry — after the first measure and
+///   again on every band crossing — *after* the framework has resolved that band's seed cache.
+///   [`PackedApi::restored`] says whether it found one; if not, the grid is empty and the host is
+///   expected to place its tiles (or load its own default) against the now-real step size.
 /// - the host must provide a `Callback<GroupId>` context — the per-tile `+` button calls it to ask
 ///   the host to open a new tab.
 #[component]
-pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_ready: Option<Callback<PackedApi>>, config: Option<Config>) -> Element {
+pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<PackedApi>>, config: Option<Config>) -> Element {
 	let cfg = config.unwrap_or_default();
 	// Root-scope, not this scope: `PackedApi` is driven from outside `PackedArea`'s subtree, so the
 	// cell must outlive this component (this root component never unmounts).
@@ -152,8 +161,8 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_ready: Option<Callback<Pack
 		style { dangerous_inner_html: CSS }
 		div {
 			class: "dv-packed",
-			onmounted: move |e| measure_and_seed(e, state, api, on_ready),
-			onresize: move |_| remeasure(state),
+			onmounted: move |e| measure_mounted(e, state, api, on_band),
+			onresize: move |_| remeasure(state, api, on_band),
 
 			for frame in frames.iter() {
 				div {
@@ -336,28 +345,33 @@ fn packed_scroll_y() -> f64 {
 }
 
 /// Read the root's `getBoundingClientRect` origin + content box (`clientWidth/Height`, which
-/// exclude the scrollbar gutter the tiles must not spill into) and hand them to the core measure;
-/// then seed once past the first real step size.
-fn measure_and_seed(e: MountedEvent, mut state: Signal<PackedState>, api: PackedApi, on_ready: Option<Callback<PackedApi>>) {
+/// exclude the scrollbar gutter the tiles must not spill into) and hand them to the core measure.
+#[cfg(target_arch = "wasm32")]
+fn measure(el: &web_sys::Element, mut state: Signal<PackedState>, api: PackedApi, on_band: Option<Callback<PackedApi>>) {
+	let rect = el.get_bounding_client_rect();
+	state.write().set_measure((rect.x(), rect.y()), (el.client_width() as f64, el.client_height() as f64));
+	// The latch resolves the band's cache itself; `on_band` only fills in what it left behind.
+	if state.write().take_band().is_some()
+		&& let Some(cb) = on_band
+	{
+		cb.call(api);
+	}
+}
+
+fn measure_mounted(e: MountedEvent, state: Signal<PackedState>, api: PackedApi, on_band: Option<Callback<PackedApi>>) {
 	#[cfg(target_arch = "wasm32")]
 	{
 		use dioxus::web::WebEventExt;
 		if let Some(el) = e.data().try_as_web_event() {
-			let rect = el.get_bounding_client_rect();
-			state.write().set_measure((rect.x(), rect.y()), (el.client_width() as f64, el.client_height() as f64));
-			if state.write().take_ready() {
-				if let Some(cb) = on_ready {
-					cb.call(api);
-				}
-			}
+			measure(&el, state, api, on_band);
 		}
 	}
 	#[cfg(not(target_arch = "wasm32"))]
-	let _ = (e, &mut state, api, on_ready);
+	let _ = (e, state, api, on_band);
 }
 
-/// Re-measure on a container resize.
-fn remeasure(mut state: Signal<PackedState>) {
+/// Re-measure on a container resize — which may cross a band, so it runs the latch too.
+fn remeasure(state: Signal<PackedState>, api: PackedApi, on_band: Option<Callback<PackedApi>>) {
 	#[cfg(target_arch = "wasm32")]
 	{
 		use wasm_bindgen::JsCast;
@@ -366,12 +380,11 @@ fn remeasure(mut state: Signal<PackedState>) {
 			.and_then(|d| d.query_selector(".dv-packed").ok().flatten())
 			.and_then(|el| el.dyn_into::<web_sys::Element>().ok())
 		{
-			let rect = el.get_bounding_client_rect();
-			state.write().set_measure((rect.x(), rect.y()), (el.client_width() as f64, el.client_height() as f64));
+			measure(&el, state, api, on_band);
 		}
 	}
 	#[cfg(not(target_arch = "wasm32"))]
-	let _ = &mut state;
+	let _ = (state, api, on_band);
 }
 
 /// `setPointerCapture` on the resize grip so its pointermove keeps firing past the viewport edge.

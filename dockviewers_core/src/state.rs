@@ -15,12 +15,13 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-	config::{Breakpoint, Config},
+	config::{Band, Breakpoint, Config, Saved},
 	model::{
 		Group, GroupId, PanelId,
 		packed::{DragSource, DropTarget, GridState, MinSize, PackedGrid},
 		serial,
 	},
+	persist,
 };
 
 /// Approx root font size; bridges rem ⇄ px so a type's rem-expressed [`MinSize`] resolves to whole
@@ -34,8 +35,8 @@ const DRAG_THRESHOLD: f64 = 4.0;
 /// Everything the packed layout needs to render and mutate itself, on one struct. The engine's
 /// grid plus the live view geometry (`cols`/`step_px`/`breakpoint`/`root_*`, set by the measure),
 /// the in-flight gestures (`drag`/`resize`), the keyboard-driven pane state
-/// (`focused`/`maximized`/`help`/`popups`), the undo history, the first-measure `ready` latch, and
-/// the host `cfg`.
+/// (`focused`/`maximized`/`help`/`popups`), the undo history, the `shown` band latch, and the host
+/// `cfg`.
 pub struct PackedState {
 	grid: PackedGrid,
 	cols: u32,
@@ -53,7 +54,9 @@ pub struct PackedState {
 	help: bool,
 	popups: HashSet<GroupId>,
 	undo: UndoHistory,
-	ready: bool,
+	/// The [`Band`] whose layout is currently on screen — `None` until the first real measure, and
+	/// reset to the new band by [`take_band`](PackedState::take_band) on every crossing.
+	shown: Option<Band>,
 	cfg: Config,
 }
 
@@ -74,7 +77,7 @@ impl PackedState {
 			help: false,
 			popups: HashSet::new(),
 			undo: UndoHistory::default(),
-			ready: false,
+			shown: None,
 			cfg,
 		}
 	}
@@ -122,8 +125,9 @@ impl PackedState {
 		self.cols
 	}
 
-	pub fn breakpoint(&self) -> Breakpoint {
-		self.breakpoint
+	/// The band the layout is stored under — coarser than the [`Breakpoint`] driving `cols`.
+	pub fn band(&self) -> Band {
+		self.breakpoint.band()
 	}
 
 	/// Read access to the live grid — for a host rebuilding its panel list from a restored layout.
@@ -131,9 +135,12 @@ impl PackedState {
 		&self.grid
 	}
 
-	/// Wipe the layout back to empty (a host re-seeding a fresh band).
+	/// Wipe the layout back to empty (a host re-seeding a fresh band). Any gesture in flight goes
+	/// with it: `drag`/`resize` hold cell *indices*, which address nothing once the cells are gone.
 	pub fn reset(&mut self) {
 		self.grid = PackedGrid::default();
+		self.drag = None;
+		self.resize = None;
 	}
 
 	// ------- effects, folded to methods -------
@@ -185,15 +192,39 @@ impl PackedState {
 		self.undo.push(self.grid.clone());
 	}
 
-	/// The first-measure seed latch: returns `true` exactly once, after a real step size lands, so a
-	/// host can `place` its initial tiles against a live scale. The binding then invokes its
-	/// `on_ready` hook.
-	pub fn take_ready(&mut self) -> bool {
-		if self.ready || self.step_px.0 <= 0.0 {
-			return false;
+	/// Band-resolution latch: `Some(restored)` the first time a real step size lands, and again on
+	/// every band change. `true` ⇒ this band's cached layout was restored from `localStorage`;
+	/// `false` ⇒ nothing usable was cached and the grid has been reset — the host must place its
+	/// tiles (or load its own default). Called by the binding after every measure; it then invokes
+	/// the host's `on_band` hook.
+	pub fn take_band(&mut self) -> Option<bool> {
+		let band = self.band();
+		if self.step_px.0 <= 0.0 || self.shown == Some(band) {
+			return None;
 		}
-		self.ready = true;
-		true
+		self.shown = Some(band);
+		self.reset();
+		let Some(key) = self.cfg.storage_key.as_ref().map(|k| format!("{k}-{band}")) else {
+			return Some(false);
+		};
+		let Some(json) = persist::read(&key) else { return Some(false) };
+		match serial::load(&json) {
+			// An empty payload parses fine and renders a blank dock, which reads as a broken app rather
+			// than as a cache to fall past — so it is a miss, like a corrupt one.
+			Ok(grid) if grid.cells.is_empty() => {
+				report(&format!("dockview: cached layout at {key:?} is empty; re-seeding"));
+				Some(false)
+			}
+			Ok(grid) => {
+				self.grid = grid;
+				self.grid.refit(self.cols);
+				Some(true)
+			}
+			Err(e) => {
+				report(&format!("dockview: cached layout at {key:?} is unusable ({e:?}); re-seeding"));
+				Some(false)
+			}
+		}
 	}
 
 	// ------- gestures -------
@@ -459,6 +490,31 @@ impl PackedState {
 			}
 			return prevent(false);
 		}
+		// The two save chords, ahead of the host's own: a host that rebinds `s` would otherwise shadow
+		// the built-in cache without any way to notice.
+		if kb.save.matches(key, alt, ctrl) {
+			recognized("save");
+			let band = self.band();
+			if let Some(k) = self.cfg.storage_key.as_ref() {
+				persist::write(&format!("{k}-{band}"), &self.save());
+			}
+			// Cloning the `Rc` rather than taking it: the hook is `Fn(Saved)` and never touches `self`,
+			// so there is nothing to hand back.
+			if let Some(hook) = self.cfg.on_save.clone() {
+				hook(Saved::Cached { band });
+			}
+			return prevent(true);
+		}
+		if kb.publish.matches(key, alt, ctrl)
+			&& let Some(hook) = self.cfg.on_save.clone()
+		{
+			recognized("publish");
+			hook(Saved::Published {
+				band: self.band(),
+				json: self.save(),
+			});
+			return prevent(true);
+		}
 		// Host-registered chords: taken out so the boxed action can borrow `self` mutably, restored after.
 		let actions = std::mem::take(&mut self.cfg.actions);
 		let mut prevent_default = false;
@@ -671,12 +727,23 @@ impl PackedState {
 			("Close pane", kb.close),
 			("Maximize pane", kb.maximize),
 			("Toggle this hint", kb.help),
+			("Save layout", kb.save),
 		]
 		.into_iter()
+		.chain(self.cfg.on_save.is_some().then_some(("Publish layout", kb.publish)))
 		.map(|(label, b)| (label, format!("{}{}{}", if b.ctrl { "Ctrl+" } else { "" }, if b.alt { "Alt+" } else { "" }, b.key)))
 		.chain(std::iter::once(("Inspect pane", "d".into())))
 		.collect()
 	}
+}
+
+/// A cached layout that couldn't be used. Loud on purpose: a seed cache that silently wipes itself
+/// is indistinguishable from one that was never written.
+fn report(msg: &str) {
+	#[cfg(target_arch = "wasm32")]
+	web_sys::console::error_1(&msg.into());
+	#[cfg(not(target_arch = "wasm32"))]
+	eprintln!("{msg}");
 }
 
 /// One tile in the skeleton view-model: its group id, position style, the drop-feedback flags

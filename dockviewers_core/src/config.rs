@@ -34,12 +34,25 @@ pub struct Keybinds {
 	pub close: Keybind = Keybind { key: "Backspace", alt: false, ctrl: false },
 	pub maximize: Keybind = Keybind { key: "f", alt: false, ctrl: false },
 	pub help: Keybind = Keybind { key: "?", alt: false, ctrl: false },
+	/// Cache this band's layout in `localStorage`, so this browser starts from it.
+	pub save: Keybind = Keybind { key: "s", alt: true, ctrl: false },
+	/// Hand this band's layout to the host, to become the default *other* clients start from.
+	pub publish: Keybind = Keybind { key: "S", alt: true, ctrl: false },
 }
 
 /// A host-registered chord's action: arbitrary code over the live layout. Framework-agnostic —
 /// the binding invokes it against its reactive cell's [`PackedState`]. `Rc` (not `Box`) so
 /// [`Config`] stays `Clone` for a binding that hands it around by prop.
 pub type Action = Rc<dyn Fn(&mut PackedState)>;
+
+/// What a save chord produced, handed to [`Config::on_save`].
+pub enum Saved {
+	/// [`Keybinds::save`] — already written to `localStorage` under `band`'s key. Feedback only.
+	Cached { band: Band },
+	/// [`Keybinds::publish`] — the framework does nothing with this; the host persists `json`
+	/// wherever it wants, to become the default fresh clients start from.
+	Published { band: Band, json: String },
+}
 
 #[derive(Clone, Default)]
 pub struct Config {
@@ -59,6 +72,12 @@ pub struct Config {
 	/// already tracks the screen without help. Dividing by a *fixed* row count, not the used rows,
 	/// keeps the whitespace-below look. The default ≈ a square step on a 16∶9 container (`64 × 9/16`).
 	pub rows: u32 = 36,
+	/// `localStorage` namespace for the built-in seed cache; the [`Band`] is appended. `None` ⇒ no
+	/// client cache at all, and every band entry reports a miss for the host to seed.
+	pub storage_key: Option<String> = None,
+	/// Fires after a save chord. `None` ⇒ [`publish`](Keybinds::publish) is unbound, since the
+	/// framework has nowhere to put a published layout on its own.
+	pub on_save: Option<Rc<dyn Fn(Saved)>> = None,
 }
 
 /// Config never changes at runtime; a binding compares it only to decide whether to re-seed. The
@@ -68,6 +87,8 @@ impl PartialEq for Config {
 		self.keybinds == other.keybinds
 			&& self.steps == other.steps
 			&& self.rows == other.rows
+			&& self.storage_key == other.storage_key
+			&& self.on_save.is_some() == other.on_save.is_some()
 			&& self.actions.len() == other.actions.len()
 			&& self.actions.iter().zip(&other.actions).all(|(a, b)| a.0 == b.0)
 	}
@@ -77,8 +98,9 @@ impl PartialEq for Config {
 /// row counts are derived per band so the *physical* step size stays ~constant across devices: a
 /// phone gets fewer steps than a desktop, so the same tiles reflow and stack down instead of
 /// shrinking to illegibility. The count is fixed within a band (the grid still stretches to fill),
-/// so a layout has one stable signature per band — persist one layout per `Breakpoint`, keyed by
-/// its [`Display`](std::fmt::Display) name (`xs`/`sm`/`md`/`lg`/`xl`).
+/// so a layout has one stable signature per band. Layouts are stored per [`Band`], not per
+/// breakpoint: neighbouring bands differ only in column count, and a phone-sized arrangement is
+/// worth keeping apart from a desktop one, a 16-column difference is not.
 #[derive(Clone, Copy, Debug, Default, serde::Deserialize, Eq, Hash, PartialEq, serde::Serialize)]
 pub enum Breakpoint {
 	Xs,
@@ -120,6 +142,35 @@ impl Breakpoint {
 	/// `height / rows` vertical step) already tracks the screen on its own.
 	pub(crate) fn scale_cols(self, base: u32) -> u32 {
 		((base as f64 * self.design() / Self::Xl.design()).round() as u32).max(1)
+	}
+
+	pub(crate) const fn band(self) -> Band {
+		match self {
+			Self::Xs | Self::Sm => Band::Sm,
+			Self::Md => Band::Md,
+			Self::Lg | Self::Xl => Band::Xl,
+		}
+	}
+}
+
+/// The unit a layout is stored under: phone, tablet, desktop. Coarser than [`Breakpoint`], which
+/// exists to keep the *step* physically constant and would otherwise force a separate saved layout
+/// for a 200px width difference nobody rearranges tiles over.
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize, Eq, Hash, PartialEq, serde::Serialize)]
+pub enum Band {
+	Sm,
+	Md,
+	#[default]
+	Xl,
+}
+
+impl std::fmt::Display for Band {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str(match self {
+			Self::Sm => "sm",
+			Self::Md => "md",
+			Self::Xl => "xl",
+		})
 	}
 }
 
