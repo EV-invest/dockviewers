@@ -35,16 +35,12 @@
           enable = true;
           lastSupportedVersion = "nightly-2026-06-18";
           jobs.default = true;
-          gitignore.extra = ''
-            .pre-commit-config.yaml
-          '';
         };
         readme = v_flakes.readme-fw {
           inherit pkgs pname;
           defaults = true;
           lastSupportedVersion = "nightly-1.92";
           rootDir = ./.;
-          repo = "EV-invest/dockviewers";
           badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ];
         };
         combined = v_flakes.utils.combine { inherit rust; modules = [ rs github readme ]; };

@@ -23,6 +23,8 @@ functions.sh
 result
 .direnv/
 .devenv/
+### store symlink written by git-hooks.nix' installationScript; the path is per-rev, so tracking it only ever produces churn
+.pre-commit-config.yaml
 
 ## Vim
 *.sw[po]
@@ -83,5 +85,3 @@ CLAUDE.md
 ### could be used for initial debugging of apps using `config` crate
 /config.toml
 **/rustc-ice*
-.pre-commit-config.yaml
-
