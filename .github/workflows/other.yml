@@ -1,5 +1,7 @@
 jobs:
   asset-gate:
+    env:
+      RUSTC_WRAPPER: ''
     name: Asset gate
     runs-on: ubuntu-latest
     steps:
