@@ -5,4 +5,4 @@ A tiling/docking layout for [Dioxus](https://dioxuslabs.com/) and [Leptos](https
 ![fuzz trace, seed 172](docs/.readme_assets/fuzz.svg)
 
 A random fuzz run (seed 172), not a demo. For the real thing, [play with it](https://ev-invest.github.io/dockviewers/).
-// generate it yourself: `cargo r --example fuzz_film -p dockviewers_core -- --seed 172`.
+// generate it yourself: `nix run .#film`.

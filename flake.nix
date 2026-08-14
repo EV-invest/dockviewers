@@ -35,6 +35,16 @@
           enable = true;
           lastSupportedVersion = "nightly-2026-06-18";
           jobs.default = true;
+          # The film is generated and committed, so nothing else notices when the generator moves
+          # under it. Daily rather than per-run: it builds the workspace to redraw one SVG.
+          jobs.other.augment = [{
+            name = "asset-gate";
+            args = {
+              asset = "docs/.readme_assets/fuzz.svg";
+              command = "nix run .#film";
+              everySeconds = 86400;
+            };
+          }];
         };
         readme = v_flakes.readme-fw {
           inherit pkgs pname;
@@ -89,6 +99,22 @@
                 ;;
             esac
           ''}";
+        };
+
+        # Redraws the README's fuzz film. The seed is pinned rather than left to the film's own
+        # best-of-scan: an asset a CI job diffs has to be a function of the tree alone, and
+        # best-of-scan makes it a function of the scan too.
+        apps.film = {
+          type = "app";
+          program = pkgs.lib.getExe (pkgs.writeShellApplication {
+            name = "film";
+            runtimeInputs = with pkgs; [ rust git pkg-config openssl mold ];
+            text = ''
+              cd "$(git rev-parse --show-toplevel)"
+              cargo run --example fuzz_film -p dockviewers_core -- \
+                --seed 172 --out "''${ASSET_OUT:-''${1:-docs/.readme_assets/fuzz.svg}}"
+            '';
+          });
         };
 
         devShells.default =

@@ -68,14 +68,12 @@ jobs:
     name: Unused Dependencies
     runs-on: ubuntu-latest
     steps:
-    - name: Installation
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-machete
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@v31
     - name: Cargo Machete
-      run: "\t\t\t\t\t\tcargo machete\n\t\t\t\t\t\texit_code=$?\n\t\t\t\t\t\tif [\
-        \ $exit_code = 0 ]; then\n\t\t\t\t\t\t\techo \"Found unused dependencies\"\
-        \n\t\t\t\t\t\t\texit $exit_code\n\t\t\t\t\t\tfi\n\t\t\t"
+      run: "\t\t\t\tnix run github:valeratrades/v_flakes#cargo-machete\n\t\t\t\texit_code=$?\n\
+        \t\t\t\tif [ $exit_code != 0 ]; then\n\t\t\t\t\techo \"Found unused dependencies\"\
+        \n\t\t\t\t\texit $exit_code\n\t\t\t\tfi\n\t\t\t"
   rust-sorted:
     name: Cargo Sorted
     runs-on: ubuntu-latest
@@ -94,15 +92,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Installation
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-sort-derives
+    - uses: cachix/install-nix-action@v31
     - name: Assert derives are sorted
-      run: "\t\t\t\tcargo sort-derives --check\n\t\t\t\texit_code=$?\n\t\t\t\tif [\
-        \ $exit_code != 0 ]; then\n\t\t\t\t\techo \"Derives are not sorted. Run \\\
-        `cargo sort-derives\\` to fix it.\"\n\t\t\t\t\texit $exit_code\n\t\t\t\tfi\n\
-        \t\t\t"
+      run: "\t\t\t\t# `sort-derives` is argv[1] here: the binary is a cargo subcommand,\
+        \ and `nix run` invokes\n\t\t\t\t# it directly rather than through `cargo`,\
+        \ so nothing else supplies that word.\n\t\t\t\tnix run github:valeratrades/v_flakes#cargo-sort-derives\
+        \ -- sort-derives --check\n\t\t\t\texit_code=$?\n\t\t\t\tif [ $exit_code !=\
+        \ 0 ]; then\n\t\t\t\t\techo \"Derives are not sorted. Run \\`cargo sort-derives\\\
+        ` to fix it.\"\n\t\t\t\t\texit $exit_code\n\t\t\t\tfi\n\t\t\t"
   tokei:
     name: Reasonable Amount of Comments
     runs-on: ubuntu-latest

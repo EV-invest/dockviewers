@@ -22,13 +22,15 @@ use crate::{
 	sim::{EDGES, MAX_H, MAX_W, MIN_H, MIN_W, World},
 };
 
+/// Action kinds, in the order their swarm weights are drawn.
+pub const N_KINDS: usize = 8;
+/// Every chord, so the generator can't silently drop one as the set grows.
+pub const KEY_KINDS: [KeyKind; 7] = [KeyKind::Close, KeyKind::Maximize, KeyKind::Undo, KeyKind::Redo, KeyKind::Help, KeyKind::Escape, KeyKind::Inspect];
 /// Height of the tile chrome: `Config::title_h_rem`'s default resolved against the 16px root font a
 /// non-DOM target assumes. Mirrored here only to aim at headers and to re-run the pure
 /// `resolve_target` for the coverage tally.
 const CHROME_H: f64 = 32.0;
 
-/// Action kinds, in the order their swarm weights are drawn.
-pub const N_KINDS: usize = 8;
 const MEASURE: usize = 0;
 const PLACE: usize = 1;
 const ADD_TAB: usize = 2;
@@ -38,8 +40,6 @@ const RESIZE: usize = 5;
 const KEY: usize = 6;
 const SAVE_LOAD: usize = 7;
 
-/// Every chord, so the generator can't silently drop one as the set grows.
-pub const KEY_KINDS: [KeyKind; 7] = [KeyKind::Close, KeyKind::Maximize, KeyKind::Undo, KeyKind::Redo, KeyKind::Help, KeyKind::Escape, KeyKind::Inspect];
 #[derive(Clone, Debug)]
 pub enum Action {
 	/// A container resize, through `set_measure` → `Breakpoint` → `scale_cols` → `refit`.

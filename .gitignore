@@ -76,6 +76,9 @@ CLAUDE.md
 
 ## Other Tools
 .codeviz/
+### written by `qlty init`, which CI re-runs from scratch on every job
+.qlty/
+graphify-out/
 **/.redis/
 **/.tb/
 **/.tb-client

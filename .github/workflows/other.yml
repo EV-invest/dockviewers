@@ -1,4 +1,44 @@
 jobs:
+  asset-gate:
+    name: Asset gate
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - id: bucket
+      name: Interval bucket
+      run: echo "key=asset-gate-docs--readme_assets-fuzz-svg-$(( $(date -u +%s) /
+        86400 ))" >> $GITHUB_OUTPUT
+    - id: guard
+      name: Has this interval been checked
+      uses: actions/cache/restore@v4
+      with:
+        key: ${{ steps.bucket.outputs.key }}
+        path: .asset-gate-stamp
+    - if: steps.guard.outputs.cache-hit != 'true'
+      name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - if: steps.guard.outputs.cache-hit != 'true'
+      name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
+    - if: steps.guard.outputs.cache-hit != 'true'
+      name: Regenerate docs/.readme_assets/fuzz.svg and compare
+      run: "export ASSET_OUT=\"$(mktemp -d)/$(basename docs/.readme_assets/fuzz.svg)\"\
+        \nnix run .#film\nif ! cmp -s docs/.readme_assets/fuzz.svg \"$ASSET_OUT\"\
+        ; then\n  echo \"::error file=docs/.readme_assets/fuzz.svg::docs/.readme_assets/fuzz.svg\
+        \ no longer matches its generator — regenerate and commit it: nix run .#film\"\
+        \n  exit 1\nfi\necho \"docs/.readme_assets/fuzz.svg is current\"\n: > .asset-gate-stamp\n"
+    - if: steps.guard.outputs.cache-hit != 'true'
+      name: Record this interval as checked
+      uses: actions/cache/save@v4
+      with:
+        key: ${{ steps.bucket.outputs.key }}
+        path: .asset-gate-stamp
   loc-badge:
     name: Update LOC Badge
     runs-on: ubuntu-latest

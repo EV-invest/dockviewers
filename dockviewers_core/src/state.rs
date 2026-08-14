@@ -748,15 +748,6 @@ impl PackedState {
 	}
 }
 
-/// A cached layout that couldn't be used. Loud on purpose: a seed cache that silently wipes itself
-/// is indistinguishable from one that was never written.
-fn report(msg: &str) {
-	#[cfg(target_arch = "wasm32")]
-	web_sys::console::error_1(&msg.into());
-	#[cfg(not(target_arch = "wasm32"))]
-	eprintln!("{msg}");
-}
-
 /// One tile in the skeleton view-model: its group id, position style, the drop-feedback flags
 /// (`shadow` ⇒ render the grey landing placeholder, `tab_drop` ⇒ highlight the header), and its
 /// tabs (empty when `shadow`).
@@ -794,6 +785,15 @@ pub struct Ghost {
 pub struct KeyOutcome {
 	pub prevent_default: bool,
 }
+/// A cached layout that couldn't be used. Loud on purpose: a seed cache that silently wipes itself
+/// is indistinguishable from one that was never written.
+fn report(msg: &str) {
+	#[cfg(target_arch = "wasm32")]
+	web_sys::console::error_1(&msg.into());
+	#[cfg(not(target_arch = "wasm32"))]
+	eprintln!("{msg}");
+}
+
 /// Inline style placing a panel's content over its tile's body from the grid rect — the same math
 /// the skeleton uses, so the two cannot drift apart. Inactive tabs stay mounted but `display:none`;
 /// a maximized group's active panel fills the container below the chrome, all others hidden.
