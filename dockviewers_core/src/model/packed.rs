@@ -40,7 +40,7 @@ impl MinSize {
 /// A placed tile: its tab-group plus its integer grid rect and the per-type minimum
 /// (resolved from [`MinSize`] at place time, so resize clamps against the *type's* floor,
 /// not a global constant).
-#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Cell {
 	pub group: Group,
 	pub x: u32,
@@ -70,14 +70,14 @@ pub struct Cell {
 /// ([`PackedGrid::assert_packed`]) is guaranteed only while [`Settled`](GridState::Settled);
 /// mid-drag the anchor may momentarily cover a neighbour before the next [`PackedGrid::resize`]
 /// settles it. A fuzz oracle asserts the invariant whenever the grid reports `Settled`.
-#[derive(Clone, Copy, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum GridState {
 	#[default]
 	Settled,
 	Resizing,
 }
 
-#[derive(Clone, Debug, Default, serde::Deserialize, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PackedGrid {
 	pub cells: Vec<Cell>,
 	pub state: GridState,

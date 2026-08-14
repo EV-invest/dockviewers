@@ -107,7 +107,7 @@ impl PartialEq for Config {
 /// so a layout has one stable signature per band. Layouts are stored per [`Band`], not per
 /// breakpoint: neighbouring bands differ only in column count, and a phone-sized arrangement is
 /// worth keeping apart from a desktop one, a 16-column difference is not.
-#[derive(Clone, Copy, Debug, Default, serde::Deserialize, Eq, Hash, PartialEq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Breakpoint {
 	Xs,
 	Sm,
@@ -162,7 +162,7 @@ impl Breakpoint {
 /// The unit a layout is stored under: phone, tablet, desktop. Coarser than [`Breakpoint`], which
 /// exists to keep the *step* physically constant and would otherwise force a separate saved layout
 /// for a 200px width difference nobody rearranges tiles over.
-#[derive(Clone, Copy, Debug, Default, serde::Deserialize, Eq, Hash, PartialEq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Band {
 	Sm,
 	Md,

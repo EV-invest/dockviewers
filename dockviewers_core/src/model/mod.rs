@@ -13,9 +13,9 @@ pub use group::Group;
 
 /// Stable identity of a panel (a single widget). Provided by the consumer; used as
 /// the render key that keeps a panel's component instance alive across restructuring.
-#[derive(Clone, Debug, serde::Deserialize, Eq, Hash, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PanelId(pub String);
 
 /// Stable identity of a group (a tab-strip leaf holding 1+ panels).
-#[derive(Clone, Copy, Debug, serde::Deserialize, Eq, Hash, PartialEq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct GroupId(pub u64);

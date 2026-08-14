@@ -5,7 +5,7 @@
 use crate::model::{GroupId, PanelId};
 
 /// The model behind a single pane's tab strip (insilicoterminal's `.subtitlebar`).
-#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Group {
 	pub id: GroupId,
 	/// Tabs left→right; never empty (an emptied group is removed from the tree).
