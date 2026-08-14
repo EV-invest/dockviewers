@@ -24,8 +24,6 @@ use dockviewers_core::model::packed::{DropTarget, MinSize};
 // the same at an example root.
 #[path = "../tests/integration/actions.rs"]
 mod actions;
-#[path = "../tests/integration/frng.rs"]
-mod frng;
 #[path = "../tests/integration/oracle.rs"]
 mod oracle;
 #[path = "../tests/integration/sim.rs"]

@@ -25,6 +25,9 @@ serde_json.workspace = true
 # variable without a second code path.
 [dev-dependencies]
 clap = { workspace = true, features = ["env"] }
+# the FRNG/minimizer/corpus kernel `tests/integration/` is a target table over, shared with
+# `trading_data`'s fuzz binary. Dev-dep only: a test harness has no business in the published lib.
+v_utils = { workspace = true, features = ["fuzz"] }
 
 [[test]]
 name = "integration"

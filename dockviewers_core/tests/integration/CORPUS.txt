@@ -1,9 +1,9 @@
-# Previously-failing fuzz cases — one `seed size version` per line (`#` starts a comment, blanks
-# ignored). `fuzz` appends a minimal repro here automatically when it finds a NEW failure; fix the
-# bug, commit the new line, and `regressions` replays it forever. Do not hand-edit the numbers —
+# Previously-failing fuzz cases — one `target seed size version` per line (`#` starts a comment,
+# blanks ignored). `fuzz` appends a minimal repro here automatically when it finds a NEW failure; fix
+# the bug, commit the new line, and `regressions` replays it forever. Do not hand-edit the numbers —
 # the trailing comment is the only free-form part.
 #
-# `version` is the generator fingerprint from `corpus.rs` (a hash of actions.rs + sim.rs + frng.rs).
+# `version` is the generator fingerprint (`v_utils::fuzz::fnv` over actions.rs + sim.rs + FRNG_SRC).
 # A `(seed, size)` names a *trace* only under the generator that recorded it: reshape `actions.rs`
 # and the same pair replays some unrelated trace — a random run wearing a regression test's name,
 # which is worse than no test, because it reports green for a case it never runs. So `regressions`
@@ -14,16 +14,23 @@
 # bug is never a reason to delete; neither is the line going stale. The only edit this file takes
 # is an append.
 #
+# SCHEMA MIGRATION, and not a deletion: the loader moved to `v_utils::fuzz`, which is shared with
+# `trading_data`'s fuzz binary and so carries the 4-field schema a binary with several generators
+# needs. Every line below was re-spelled in place — a leading `sim` (this binary's one target) and a
+# trailing `0` where the version predates versioning. The rule above forbids removing a line, not
+# writing the same case in the schema that now reads it; the numbers are untouched, and the ones
+# that read `0` never matched a live fingerprint before this either.
+#
 # Everything below is currently superseded: the generator was rewritten from poking `PackedGrid`
 # directly to driving `PackedState` through real input events, which is what found the last six.
-11153199546900910226 16  # PANIC: dockview_dioxus/src/model/packed.rs:218: drop produced an overlap
-10355267663887020511 30  # PANIC: dockview_dioxus/src/model/packed.rs:103: resize left an overlap
+sim 11153199546900910226 16 0  # PANIC: dockview_dioxus/src/model/packed.rs:218: drop produced an overlap
+sim 10355267663887020511 30 0  # PANIC: dockview_dioxus/src/model/packed.rs:103: resize left an overlap
 # Found by the first runs of the PackedState-level (gesture) fuzzer. The three PRODUCT bugs:
-8360805673751372010 14  # cell below its min — `place` never clamped a tile up to its own MinSize (a `Rem` min resolves against the live step, so it can land above the width the host asked for)
-13875549740387535953 26  # PANIC: close_active: group exists — `focused` dangled after a drag re-homed that group away, so the close chord blew up
-11123827756624342157 78  # cell spills past cols — undo/redo restored a snapshot verbatim instead of refitting it into the live band
+sim 8360805673751372010 14 0  # cell below its min — `place` never clamped a tile up to its own MinSize (a `Rem` min resolves against the live step, so it can land above the width the host asked for)
+sim 13875549740387535953 26 0  # PANIC: close_active: group exists — `focused` dangled after a drag re-homed that group away, so the close chord blew up
+sim 11123827756624342157 78 0  # cell spills past cols — undo/redo restored a snapshot verbatim instead of refitting it into the live band
 # ...and the ORACLE bugs it found in the same pass, kept for the same reason:
-9467316916113514847 9  # rendered frames overlap — abutting tile edges differ by a float ULP (`x*step + w*step != (x+w)*step`), so the render-space check needed a hairline tolerance
-17290661328899849584 23  # armed drag paints no landing hint — a maximized pane renders alone, so a shadow belonging to any other tile has nowhere to land
-5271280808920698878 43  # same, one step further: the drag's preview tears the maximized tile's last tab away, so nothing renders at all
-1794984045769886574 15 3710054129  # cell below its min: Cell { group: Group { id: GroupId(4), tabs: [PanelId("p5")], active: 0 }, x: 35, y: 0, w: 11, h: 7, min_w: 12, min_h: 1, desired_w: None, desired_x: None, rank: 3 } (min 12x1, cols 48)
+sim 9467316916113514847 9 0  # rendered frames overlap — abutting tile edges differ by a float ULP (`x*step + w*step != (x+w)*step`), so the render-space check needed a hairline tolerance
+sim 17290661328899849584 23 0  # armed drag paints no landing hint — a maximized pane renders alone, so a shadow belonging to any other tile has nowhere to land
+sim 5271280808920698878 43 0  # same, one step further: the drag's preview tears the maximized tile's last tab away, so nothing renders at all
+sim 1794984045769886574 15 3710054129  # cell below its min: Cell { group: Group { id: GroupId(4), tabs: [PanelId("p5")], active: 0 }, x: 35, y: 0, w: 11, h: 7, min_w: 12, min_h: 1, desired_w: None, desired_x: None, rank: 3 } (min 12x1, cols 48)

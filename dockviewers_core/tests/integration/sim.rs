@@ -11,8 +11,9 @@ use dockviewers_core::{
 	Band, Config, Group, GroupId, PackedState, PanelId, Step,
 	model::packed::{DropTarget, MinSize, PackedGrid},
 };
+use v_utils::fuzz::Frng;
 
-use crate::{actions, frng::Frng, oracle};
+use crate::{actions, oracle};
 
 /// Container widths the fuzzer measures at: both sides of every [`Breakpoint`] boundary, so band
 /// transitions are hit exactly rather than by luck, plus a uniform draw in between.

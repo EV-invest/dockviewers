@@ -15,9 +15,9 @@ use dockviewers_core::{
 	Group, GroupId, Keybind, PackedState, PanelId, Step,
 	model::packed::{DragSource, DropTarget, MinSize},
 };
+use v_utils::fuzz::Frng;
 
 use crate::{
-	frng::Frng,
 	oracle,
 	sim::{EDGES, MAX_H, MAX_W, MIN_H, MIN_W, World},
 };
