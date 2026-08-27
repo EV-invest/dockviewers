@@ -23,7 +23,7 @@ use crate::{
 };
 
 /// Action kinds, in the order their swarm weights are drawn.
-pub const N_KINDS: usize = 8;
+pub const N_KINDS: usize = 9;
 /// Every chord, so the generator can't silently drop one as the set grows.
 pub const KEY_KINDS: [KeyKind; 7] = [KeyKind::Close, KeyKind::Maximize, KeyKind::Undo, KeyKind::Redo, KeyKind::Help, KeyKind::Escape, KeyKind::Inspect];
 /// Height of the tile chrome: `Config::title_h_rem`'s default resolved against the 16px root font a
@@ -39,6 +39,7 @@ const DRAG: usize = 4;
 const RESIZE: usize = 5;
 const KEY: usize = 6;
 const SAVE_LOAD: usize = 7;
+const SET_MIN: usize = 8;
 
 #[derive(Clone, Debug)]
 pub enum Action {
@@ -75,6 +76,12 @@ pub enum Action {
 	Key(KeyKind),
 	/// `save()` → a fresh state measured the same → `load()` → must reproduce the layout.
 	SaveLoad,
+	/// A host re-flooring a panel from its content. The floor is unbounded by the tile's current
+	/// span, which is the case `resize` never produces.
+	SetMin {
+		panel: PanelId,
+		min: MinSize,
+	},
 }
 
 /// What a press picks up, with the press point and the pointer's offset within the pressed element.
@@ -130,6 +137,10 @@ pub fn apply(action: &Action, world: &mut World, mid: &mut dyn FnMut(&World)) ->
 		}
 		Action::Key(k) => return key(*k, world),
 		Action::SaveLoad => return save_load(world),
+		Action::SetMin { panel, min } => {
+			world.structural_edit();
+			world.state.set_min(panel, *min);
+		}
 	}
 	Ok(())
 }
@@ -145,6 +156,7 @@ pub fn generate(frng: &mut Frng, world: &World, weights: &[u32; N_KINDS]) -> Opt
 		avail.push(DRAG);
 		// `resize_start` indexes the cell list, so an empty grid has no grip to take.
 		avail.push(RESIZE);
+		avail.push(SET_MIN);
 		// A mid-resize grid is deliberately unsettled and `load` refits, so the two can't agree yet.
 		if !world.state.resizing() {
 			avail.push(SAVE_LOAD);
@@ -242,6 +254,25 @@ pub fn generate(frng: &mut Frng, world: &World, weights: &[u32; N_KINDS]) -> Opt
 		}
 		KEY => Action::Key(KEY_KINDS[frng.below(KEY_KINDS.len() as u32) as usize]),
 		SAVE_LOAD => Action::SaveLoad,
+		SET_MIN => {
+			let c = &cells[frng.below(cells.len() as u32) as usize];
+			Action::SetMin {
+				panel: c.group.tabs[frng.below(c.group.tabs.len() as u32) as usize].clone(),
+				// Drawn against the whole band, not the tile — a floor wider than what's left of the row
+				// is the case only a re-floor can reach, and the one that must clamp rather than spill.
+				min: if frng.below(2) == 0 {
+					MinSize::Steps {
+						w: Step(1 + frng.below(world.state.cols())),
+						h: Step(1 + frng.below(world.cfg.rows)),
+					}
+				} else {
+					MinSize::Rem {
+						w: (1 + frng.below(20)) as f64,
+						h: (1 + frng.below(20)) as f64,
+					}
+				},
+			}
+		}
 		_ => unreachable!("kind is one of the constants pushed into `avail`"),
 	})
 }

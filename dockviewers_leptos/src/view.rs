@@ -25,6 +25,10 @@ impl PackedApi {
 		self.state.update(|s| s.place(group, w, h, min));
 	}
 
+	pub fn set_min(&self, panel: &PanelId, min: MinSize) {
+		self.state.update(|s| s.set_min(panel, min));
+	}
+
 	pub fn add_tab(&self, group: GroupId, panel: PanelId) {
 		self.state.update(|s| s.add_tab(group, panel));
 	}

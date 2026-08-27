@@ -25,6 +25,10 @@ impl PackedApi {
 		self.state.write().place(group, w, h, min);
 	}
 
+	pub fn set_min(&mut self, panel: &PanelId, min: MinSize) {
+		self.state.write().set_min(panel, min);
+	}
+
 	pub fn add_tab(&mut self, group: GroupId, panel: PanelId) {
 		self.state.write().add_tab(group, panel);
 	}

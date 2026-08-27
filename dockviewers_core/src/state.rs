@@ -94,6 +94,14 @@ impl PackedState {
 		self.grid.place(group, w, h, min.resolve(sw, sh, self.rem_px), self.cols);
 	}
 
+	/// Re-floor `panel`'s tile against the live step size — the host recomputed what its content
+	/// needs. Idempotent, so a host may call it on every content or viewport change.
+	pub fn set_min(&mut self, panel: &PanelId, min: MinSize) {
+		let (sw, sh) = self.step_px;
+		assert!(sw > 0.0 && sh > 0.0, "set_min before the first measure: no step size yet");
+		self.grid.set_min(panel, min.resolve(sw, sh, self.rem_px), self.cols);
+	}
+
 	pub fn add_tab(&mut self, group: GroupId, panel: PanelId) {
 		self.grid.add_tab(group, panel);
 	}

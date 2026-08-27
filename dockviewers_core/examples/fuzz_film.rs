@@ -54,7 +54,7 @@ const C_FG: &str = "#ddd";
 /// `--dv-shadow-bg` is `rgba(160,160,160,0.18)`; flattened over the tile bg so the landing cell is
 /// legible at film scale.
 const C_SHADOW: &str = "#3d3d3d";
-const BUCKETS: [&str; 27] = [
+const BUCKETS: [&str; 28] = [
 	"Measure",
 	"Place",
 	"AddTab",
@@ -82,6 +82,9 @@ const BUCKETS: [&str; 27] = [
 	"band sm",
 	"band md",
 	"band xl",
+	// Appended rather than slotted next to the other action kinds, so the existing bit indices below
+	// don't all shift.
+	"SetMin",
 ];
 /// Every flag also reads a `FILM_*` variable, so the film is scriptable from an env without a
 /// second code path; clap's precedence puts the flag first.
@@ -185,6 +188,7 @@ fn hit(action: &actions::Action, world: &sim::World) -> u32 {
 			A::Resize { .. } => 5,
 			A::Key(_) => 6,
 			A::SaveLoad => 7,
+			A::SetMin { .. } => 27,
 		};
 	if let A::Drag { grab, commit, .. } = action {
 		m |= 1 << if world.resolved.is_empty() { 9 } else { 8 };
@@ -254,6 +258,14 @@ fn summary(action: &actions::Action, world: &sim::World) -> String {
 		A::Resize { idx, commit, .. } => format!("Resize tile #{idx}{}", if *commit { "" } else { " [still held]" }),
 		A::Key(k) => format!("Key {k:?}"),
 		A::SaveLoad => "SaveLoad".to_string(),
+		A::SetMin { panel, min } => format!(
+			"SetMin {} = {}",
+			panel.0,
+			match min {
+				MinSize::Steps { w, h } => format!("{}x{} steps", w.0, h.0),
+				MinSize::Rem { w, h } => format!("{w}x{h} rem"),
+			}
+		),
 	}
 }
 

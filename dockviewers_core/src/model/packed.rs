@@ -159,6 +159,24 @@ impl PackedGrid {
 		debug_assert!(self.overlaps().is_none(), "resize left an overlap");
 	}
 
+	/// Re-floor the tile hosting `panel` — its content just told us how small it may actually get.
+	/// Unlike [`resize`](Self::resize) this is not fresh user intent, so `desired_w`/`desired_x` are
+	/// left alone; and unlike `resize` the new floor can exceed the span left of the tile's pinned
+	/// left edge, which [`refit`](Self::refit) is already the rule for (clamp `x` left until the
+	/// floor fits, or fill the view if it can't). A panel the layout doesn't host is a no-op — a
+	/// binding legitimately knows panels the grid doesn't.
+	pub fn set_min(&mut self, panel: &PanelId, min: (u32, u32), cols: u32) {
+		let Some(idx) = self.cells.iter().position(|c| c.group.tabs.contains(panel)) else { return };
+		let c = &mut self.cells[idx];
+		if (c.min_w, c.min_h) == min {
+			return;
+		}
+		c.min_w = min.0;
+		c.min_h = min.1;
+		c.h = c.h.max(min.1);
+		self.refit(cols);
+	}
+
 	/// Reflow every tile into a new column count, then settle under `gravity`. Each tile aims for
 	/// its *wanted* width/left-edge (`desired_*` if a narrower view earlier clamped it, else its
 	/// current `w`/`x`), clamps that to fit `cols`, and re-stores any leftover want in `desired_*`.
