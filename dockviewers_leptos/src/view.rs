@@ -104,15 +104,20 @@ pub fn PackedArea(
 	// The first measure, once the root mounts (its content box lands a real step size).
 	root.on_load({
 		let on_band = on_band.clone();
-		move |el| measure(el.into(), state, api, on_band.as_ref())
+		move |el| {
+			#[cfg(target_arch = "wasm32")]
+			state.update(|s| s.set_root(el.clone().into()));
+			measure(el.into(), state, api, on_band.as_ref())
+		}
 	});
 
 	// A container resize (window is the only source) may cross a band, so it runs the latch too.
-	window_event_listener(ev::resize, move |_| {
+	let resize = window_event_listener(ev::resize, move |_| {
 		if let Some(el) = root.get_untracked() {
 			measure(el.into(), state, api, on_band.as_ref());
 		}
 	});
+	on_cleanup(move || resize.remove());
 
 	// Undo history: snapshot a settled layout after each structural edit. The `wants_undo_snapshot`
 	// read subscribes this effect; the guarded update doesn't re-fire it into a loop.
@@ -131,19 +136,26 @@ pub fn PackedArea(
 		use wasm_bindgen::JsCast;
 		let cursor = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
 		let track = cursor.clone();
-		window_event_listener(ev::pointermove, move |e| track.set((e.client_x() as f64, e.client_y() as f64)));
-		window_event_listener(ev::keydown, move |e| {
+		let pointermove = window_event_listener(ev::pointermove, move |e| track.set((e.client_x() as f64, e.client_y() as f64)));
+		let keydown = window_event_listener(ev::keydown, move |e| {
 			// Don't hijack typing: ignore keys aimed at an editable field.
 			if let Some(el) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) {
 				if matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT") || el.dyn_ref::<web_sys::HtmlElement>().is_some_and(web_sys::HtmlElement::is_content_editable) {
 					return;
 				}
 			}
+			let Some(el) = root.get_untracked() else {
+				return; // no layout to act on before the root mounts
+			};
 			let (cx, cy) = cursor.get();
-			let out = state.try_update(|s| s.on_key(&e.key(), e.alt_key(), e.ctrl_key(), (cx, cy), packed_scroll_y()));
-			if out.map(|o| o.prevent_default).unwrap_or(false) {
+			let out = state.try_update(|s| s.on_key(&e.key(), e.alt_key(), e.ctrl_key(), (cx, cy), el.scroll_top() as f64));
+			if out.expect("listener removed with the state's owner").prevent_default {
 				e.prevent_default();
 			}
+		});
+		on_cleanup(move || {
+			pointermove.remove();
+			keydown.remove();
 		});
 	}
 
@@ -224,7 +236,13 @@ pub fn PackedArea(
 								on:pointermove=move |e: web_sys::PointerEvent| {
 									state
 										.update(|s| {
-											s.drag_move((e.client_x() as f64, e.client_y() as f64), packed_scroll_y())
+											s.drag_move(
+												(e.client_x() as f64, e.client_y() as f64),
+												root
+													.get_untracked()
+													.expect("a drag starts inside the mounted root")
+													.scroll_top() as f64,
+											)
 										});
 								}
 								on:pointerup=move |_| state.update(|s| s.drag_release())
@@ -423,16 +441,6 @@ fn measure(el: web_sys::Element, state: RwSignal<PackedState, LocalStorage>, api
 	{
 		cb(api);
 	}
-}
-
-/// The `.dv-packed` root's scroll offset — bridges the tiles' scrolled content space and the
-/// pointer's client space for a drag/keybind hit-test.
-fn packed_scroll_y() -> f64 {
-	web_sys::window()
-		.and_then(|w| w.document())
-		.and_then(|d| d.query_selector(".dv-packed").ok().flatten())
-		.map(|el| el.scroll_top() as f64)
-		.unwrap_or(0.0)
 }
 
 /// `setPointerCapture` on the resize grip so its pointermove keeps firing past the viewport edge.

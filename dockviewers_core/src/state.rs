@@ -59,6 +59,9 @@ pub struct PackedState {
 	/// The [`Band`] whose layout is currently on screen — `None` until the first real measure, and
 	/// reset to the new band by [`take_band`](PackedState::take_band) on every crossing.
 	shown: Option<Band>,
+	/// This instance's `.dv-packed` element — DOM reads stay inside it, never document-wide.
+	#[cfg(target_arch = "wasm32")]
+	root: Option<web_sys::Element>,
 	cfg: Config,
 }
 
@@ -81,8 +84,47 @@ impl PackedState {
 			popups: HashSet::new(),
 			undo: UndoHistory::default(),
 			shown: None,
+			#[cfg(target_arch = "wasm32")]
+			root: None,
 			cfg,
 		}
+	}
+
+	#[cfg(target_arch = "wasm32")]
+	pub fn set_root(&mut self, el: web_sys::Element) {
+		self.root = Some(el);
+	}
+
+	/// Insertion slot for cursor x `mx` among `group`'s tabs in the live preview DOM: the count of
+	/// *real* tabs whose horizontal center is left of `mx` (so left-half ⇒ before, right-half ⇒ after).
+	/// `dragged` are the panel ids the source carries — the preview already inserts them as the floating
+	/// ghost's tab(s), so they're skipped, leaving the source-free order this index addresses (identical
+	/// math whether re-homing into another group or reordering within one). The one place this layer
+	/// measures, because the model has no tab widths; `None` on a non-wasm target, caller keeps the
+	/// append default.
+	#[cfg(target_arch = "wasm32")]
+	fn tab_drop_index(&self, mx: f64, group: u64, dragged: &[String]) -> Option<usize> {
+		use wasm_bindgen::JsCast;
+		let root = self.root.as_ref().expect("binding sets the root at mount, before any drag");
+		let nodes = root.query_selector_all(&format!("[data-dvg=\"{group}\"] .dv-tab")).expect("numeric-only selector");
+		let mut idx = 0;
+		for i in 0..nodes.length() {
+			let el = nodes.get(i).expect("index below length").dyn_into::<web_sys::Element>().expect("selector matches elements");
+			// Every `.dv-tab` carries `data-panel`; default "" just classes a (nonexistent) attr-less tab as real.
+			if dragged.iter().any(|p| *p == el.get_attribute("data-panel").unwrap_or_default()) {
+				continue;
+			}
+			let r = el.get_bounding_client_rect();
+			if mx > r.x() + r.width() / 2.0 {
+				idx += 1;
+			}
+		}
+		Some(idx)
+	}
+
+	#[cfg(not(target_arch = "wasm32"))]
+	fn tab_drop_index(&self, _: f64, _: u64, _: &[String]) -> Option<usize> {
+		None
 	}
 
 	// ------- imperative host API (folded from the old `PackedApi`) -------
@@ -333,7 +375,7 @@ impl PackedState {
 			};
 			t = DropTarget::Tab {
 				group,
-				index: tab_drop_index(cursor.0, group.0, &dragged).unwrap_or(index),
+				index: self.tab_drop_index(cursor.0, group.0, &dragged).unwrap_or(index),
 			};
 		}
 		d.target = Some(t);
@@ -900,38 +942,4 @@ impl UndoHistory {
 		self.cursor = next;
 		Some(g)
 	}
-}
-
-/// Insertion slot for cursor x `mx` among `group`'s tabs in the live preview DOM: the count of
-/// *real* tabs whose horizontal center is left of `mx` (so left-half ⇒ before, right-half ⇒ after).
-/// `dragged` are the panel ids the source carries — the preview already inserts them as the floating
-/// ghost's tab(s), so they're skipped, leaving the source-free order this index addresses (identical
-/// math whether re-homing into another group or reordering within one). The one place this layer
-/// measures, because the model has no tab widths; `None` ⇒ DOM not ready (or a non-wasm target),
-/// caller keeps the append default.
-#[cfg(target_arch = "wasm32")]
-fn tab_drop_index(mx: f64, group: u64, dragged: &[String]) -> Option<usize> {
-	use wasm_bindgen::JsCast;
-	let doc = web_sys::window()?.document()?;
-	// Selector is numeric-only, so it can't be malformed — `.ok()?` only trips if the doc is absent.
-	let nodes = doc.query_selector_all(&format!("[data-dvg=\"{group}\"] .dv-tab")).ok()?;
-	let mut idx = 0;
-	for i in 0..nodes.length() {
-		let Some(el) = nodes.get(i).and_then(|n| n.dyn_into::<web_sys::Element>().ok()) else {
-			continue;
-		};
-		// Every `.dv-tab` carries `data-panel`; default "" just classes a (nonexistent) attr-less tab as real.
-		if dragged.iter().any(|p| *p == el.get_attribute("data-panel").unwrap_or_default()) {
-			continue;
-		}
-		let r = el.get_bounding_client_rect();
-		if mx > r.x() + r.width() / 2.0 {
-			idx += 1;
-		}
-	}
-	Some(idx)
-}
-#[cfg(not(target_arch = "wasm32"))]
-fn tab_drop_index(_: f64, _: u64, _: &[String]) -> Option<usize> {
-	None
 }

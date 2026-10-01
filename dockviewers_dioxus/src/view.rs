@@ -104,11 +104,14 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 	let api = PackedApi { state };
 	let request_tab = use_context::<Callback<GroupId>>();
 
+	#[cfg(target_arch = "wasm32")]
+	let mut root = use_signal(|| None::<web_sys::Element>);
+
 	// Keybinds are app-level: a `window` keydown listener (not an element `onkeydown`, which fires
 	// only while the dock subtree holds DOM focus — it usually doesn't). A sibling `pointermove`
-	// tracks the raw cursor for the `d` hit-test. `forget` leaks both so they live for the whole app.
+	// tracks the raw cursor for the `d` hit-test. Both are removed on unmount.
 	#[cfg(target_arch = "wasm32")]
-	use_hook(move || {
+	let listeners = use_hook(move || {
 		use wasm_bindgen::{JsCast, closure::Closure};
 		let cursor = std::rc::Rc::new(std::cell::Cell::new((0.0_f64, 0.0_f64)));
 		let track = cursor.clone();
@@ -119,9 +122,8 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 		window
 			.add_event_listener_with_callback("pointermove", mv.as_ref().unchecked_ref())
 			.expect("add pointermove listener");
-		mv.forget();
 		let mut state = state;
-		let handler = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
+		let key = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
 			// Don't hijack typing: ignore keys aimed at a form field / editable content, so a bare
 			// `u`/`f`/`Backspace` bind only acts on the layout, never on text the user is entering.
 			if let Some(el) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) {
@@ -129,8 +131,11 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 					return;
 				}
 			}
+			let Some(scroll_y) = root.peek().as_ref().map(|el| el.scroll_top() as f64) else {
+				return; // no layout to act on before the root mounts
+			};
 			let (cx, cy) = cursor.get();
-			let out = state.write().on_key(&e.key(), e.alt_key(), e.ctrl_key(), (cx, cy), packed_scroll_y());
+			let out = state.write().on_key(&e.key(), e.alt_key(), e.ctrl_key(), (cx, cy), scroll_y);
 			if out.prevent_default {
 				e.prevent_default();
 			}
@@ -138,9 +143,20 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 		// Capture phase: fire before any descendant (Google Maps, Plotly, …) can `stopPropagation` a
 		// keydown on its way up to `window`, which would otherwise silence every bind.
 		window
-			.add_event_listener_with_callback_and_bool("keydown", handler.as_ref().unchecked_ref(), true)
+			.add_event_listener_with_callback_and_bool("keydown", key.as_ref().unchecked_ref(), true)
 			.expect("add keydown listener");
-		handler.forget();
+		std::rc::Rc::new((mv, key))
+	});
+	#[cfg(target_arch = "wasm32")]
+	use_drop(move || {
+		use wasm_bindgen::JsCast;
+		let window = web_sys::window().expect("a browser window");
+		window
+			.remove_event_listener_with_callback("pointermove", listeners.0.as_ref().unchecked_ref())
+			.expect("remove pointermove listener");
+		window
+			.remove_event_listener_with_callback_and_bool("keydown", listeners.1.as_ref().unchecked_ref(), true)
+			.expect("remove keydown listener");
 	});
 
 	// Undo history: snapshot a settled layout after each structural edit. `wants_undo_snapshot` is
@@ -168,8 +184,24 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 			class: "dv-packed",
 			// The stylesheet's one knob for the chrome band; the state resolves the same rem to px.
 			style: "--dv-title-h: {title_h_rem}rem;",
-			onmounted: move |e| measure_mounted(e, state, api, on_band),
-			onresize: move |_| remeasure(state, api, on_band),
+			onmounted: move |e| {
+				#[cfg(target_arch = "wasm32")]
+				{
+					use dioxus::web::WebEventExt;
+					let el = e.data().as_web_event();
+					state.write().set_root(el.clone());
+					measure(&el, state, api, on_band);
+					root.set(Some(el));
+				}
+				#[cfg(not(target_arch = "wasm32"))]
+				let _ = (e, api, on_band);
+			},
+			onresize: move |_| {
+				#[cfg(target_arch = "wasm32")]
+				if let Some(el) = root.peek().as_ref() {
+					measure(el, state, api, on_band); // before mount, `onmounted` takes the first measure
+				}
+			},
 
 			for frame in frames.iter() {
 				div {
@@ -299,7 +331,11 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 					style: "position:fixed; inset:0; z-index:1000; cursor:grabbing;",
 					onpointermove: move |e: PointerEvent| {
 						let c = e.client_coordinates();
-						state.write().drag_move((c.x, c.y), packed_scroll_y());
+						#[cfg(target_arch = "wasm32")]
+						let sy = scroll_y(root);
+						#[cfg(not(target_arch = "wasm32"))]
+						let sy = 0.0;
+						state.write().drag_move((c.x, c.y), sy);
 					},
 					onpointerup: move |_| state.write().drag_release(),
 					onpointercancel: move |_| state.write().drag_cancel(),
@@ -333,22 +369,11 @@ pub fn PackedArea(panels: Signal<Vec<DockPanel>>, on_band: Option<Callback<Packe
 	}
 }
 
-/// The `.dv-packed` root's scroll offset — the tiles live in this scrolled content space, the
-/// pointer in client space, so a drag/keybind hit-test bridges the two with it.
-fn packed_scroll_y() -> f64 {
-	#[cfg(target_arch = "wasm32")]
-	{
-		web_sys::window()
-			.expect("a browser window")
-			.document()
-			.expect("a document")
-			.query_selector(".dv-packed")
-			.expect("static selector")
-			.expect("packed root in DOM while a gesture is live")
-			.scroll_top() as f64
-	}
-	#[cfg(not(target_arch = "wasm32"))]
-	0.0
+/// The root's scroll offset — the tiles live in this scrolled content space, the pointer in client
+/// space, so a drag hit-test bridges the two with it.
+#[cfg(target_arch = "wasm32")]
+fn scroll_y(root: Signal<Option<web_sys::Element>>) -> f64 {
+	root.peek().as_ref().expect("a drag starts inside the mounted root").scroll_top() as f64
 }
 
 /// Read the root's `getBoundingClientRect` origin + content box (`clientWidth/Height`, which
@@ -363,35 +388,6 @@ fn measure(el: &web_sys::Element, mut state: Signal<PackedState>, api: PackedApi
 	{
 		cb.call(api);
 	}
-}
-
-fn measure_mounted(e: MountedEvent, state: Signal<PackedState>, api: PackedApi, on_band: Option<Callback<PackedApi>>) {
-	#[cfg(target_arch = "wasm32")]
-	{
-		use dioxus::web::WebEventExt;
-		if let Some(el) = e.data().try_as_web_event() {
-			measure(&el, state, api, on_band);
-		}
-	}
-	#[cfg(not(target_arch = "wasm32"))]
-	let _ = (e, state, api, on_band);
-}
-
-/// Re-measure on a container resize — which may cross a band, so it runs the latch too.
-fn remeasure(state: Signal<PackedState>, api: PackedApi, on_band: Option<Callback<PackedApi>>) {
-	#[cfg(target_arch = "wasm32")]
-	{
-		use wasm_bindgen::JsCast;
-		if let Some(el) = web_sys::window()
-			.and_then(|w| w.document())
-			.and_then(|d| d.query_selector(".dv-packed").ok().flatten())
-			.and_then(|el| el.dyn_into::<web_sys::Element>().ok())
-		{
-			measure(&el, state, api, on_band);
-		}
-	}
-	#[cfg(not(target_arch = "wasm32"))]
-	let _ = (state, api, on_band);
 }
 
 /// `setPointerCapture` on the resize grip so its pointermove keeps firing past the viewport edge.
